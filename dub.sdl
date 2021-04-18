@@ -1,0 +1,5 @@
+name "d_ren"
+targetType "dynamicLibrary"
+dependency "bindbc-sdl" version="~>0.21.1"
+versions "SDL_205"
+libs "user32"
