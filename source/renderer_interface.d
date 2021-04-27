@@ -17,9 +17,9 @@ struct Mode // confirmed to be RMode_t from basedefs
 {
 	byte is_hardware;
 
-	char[200] filename;		// What DLL this comes from.
-	char[100] driver_name;	// This is what the DLLs use to identify a card.
-	char[100] display_name;		// This is a 'friendly' string describing the card.
+	char[200] filename; // What DLL this comes from.
+	char[100] driver_name; // This is what the DLLs use to identify a card.
+	char[100] display_name; // This is a 'friendly' string describing the card.
 
 	// 3 align bytes here
 
@@ -32,31 +32,77 @@ struct Mode // confirmed to be RMode_t from basedefs
 
 struct RenderContextInit
 {
-	int[64] buf;
+	void*[5] buf;
+	void* list_end; // byte 24
+	void* list_head;// byte 28
+	void*[48] buf2;
 }
 
 struct RenderContext
 {
-	char[8] unknown_1;
-	RenderContextInit *init_ptr;
+	char[4] unknown_1;
 	int unknown_2; // 0x0000FFFF?
+	RenderContextInit init_ptr;
 
-	static assert(RenderContext.sizeof==0x10);
+	byte[1072-12] buf;
 }
 
 struct SharedTexture
 {
 	int[34] buf;
+}
 
-	// 136 bytes min?
-
-	static assert(SharedTexture.sizeof==136);
-	// static assert(SharedTexture.sizeof>=0x23+width*height*2); // 0x23+width*height*2
+enum DrawMode : int
+{
+	Normal=1,
+	ObjectList,
 }
 
 struct SceneDesc
 {
-	//
+	DrawMode draw_mode;
+
+	// debug text
+	uint* ticks_render_objects;
+	uint* ticks_render_models;
+	uint* ticks_render_sprites;
+	uint* ticks_render_worldmodels;
+	uint* ticks_render_particles;
+	uint* ticks_render_unknown;
+
+	// global lighting?
+	float[3] global_light;
+	float[3] global_light_scale;
+	RenderContext* render_context;
+	float[9] unknown_array_1;
+	float[3] camera_unknown;
+
+	// frame timing
+	float frame_delta;
+	uint frame_ticks;
+
+	// unknown
+	float[9] unkown_matrix;
+	float[3] unknown_vector;
+	int* unknown_array_2;
+	int unknown_count;
+
+	// camera stuff
+	Rect view_rect;
+	float fov_x, fov_y;
+	float far_clipping_plane;
+	float[3] camera_position;
+	float[4] camera_rotation;
+
+	// object list
+	void** obj_list_head;
+	int obj_count;
+
+	// model hook
+	void function(void* /+ModelHookData*+/ pData, void* pUser) model_hook_fnc_ptr;
+	void* model_hook_user;
+
+	static assert(SceneDesc.sizeof==240);
 }
 
 struct Rect // possibly DirectX struct?
@@ -77,6 +123,19 @@ struct BlitRequest
 	void*[32] buf;
 }
 
+// borrowing DLink and DList from Blood 2's dlink.h
+struct DLink
+{
+	DLink* prev, next;
+	void* data;
+}
+
+struct DList
+{
+	uint elements;
+	DLink head;
+}
+
 struct DEPalette
 {
 	//
@@ -84,14 +143,14 @@ struct DEPalette
 
 struct RenderDLL
 {
-	void* UnknownFunc;
+	void function() UnknownFunc_0;
 	void* function(void*) SetPanningSkyInfo; // GetTexture?
-	void* SomethingPanningSkyInfo; // FreeTexture?
-	void* UnknownFunc_1;
-	void* UnknownFunc_2;
-	void* UnknownFunc_3;
-	void* UnknownFunc_4;
-	void function(const char*) RunConsoleString; // RunConsoleString?
+	void function() SomethingPanningSkyInfo; // FreeTexture?
+	void function() UnknownFunc_1;
+	void function() UnknownFunc_2;
+	void function() UnknownFunc_3;
+	void function() UnknownFunc_4;
+	void function(const char*) RunConsoleString;
 	void function(const char* pMsg, ...) CPrint;
 	void* function(const char*) GetConsoleVar;
 	float function(void*) GetVarValueFloat;
@@ -107,15 +166,15 @@ struct RenderDLL
 	int function(RenderStructInit*) Init;
 	void function() Term;
 	void function(SharedTexture**) SetSoftSky;
-	void function(SharedTexture*, char*) BindTexture;
+	void function(SharedTexture*, int) BindTexture;
 	void function(SharedTexture*) UnbindTexture;
 	int function(DEPalette*) QueryDeletePalette;
 	int function(SharedTexture*) SetMasterPalette;
 	void* function(RenderContextInit*) CreateContext;
 	void function(RenderContext*) DeleteContext;
 	void function(Rect*, uint) Clear;
-	bool function() Start3D;
-	bool function() End3D;
+	int function() Start3D;
+	int function() End3D;
 	int function() IsIn3D;
 	int function() StartOptimized2D;
 	void function() EndOptimized2D;
@@ -128,12 +187,12 @@ struct RenderDLL
 	int function() GetBufferFormat;
 	SharedTexture* function(int, int) CreateSurface;
 	void function(SharedTexture*) DeleteSurface;
-	void function(SharedTexture*, out int, out int, out int) GetSurfaceInfo;
+	void function(SharedTexture*, int*, int*, int*) GetSurfaceInfo;
 	void* function(SharedTexture*) LockSurface;
 	void function(SharedTexture*) UnlockSurface;
 	int function(void*, uint) OptimizeSurface;
 	void function(void*) UnoptimizeSurface;
-	int function() LockScreen;
+	int function(int, int, int, int, void**, int*) LockScreen;
 	void function() UnlockScreen;
 	void function(BlitRequest*) BlitToScreen;
 	void function(const char*) MakeScreenShot;
@@ -148,22 +207,6 @@ struct RenderDLL
 	int unknown_6;
 	int unknown_7;
 	HMODULE render_dll_handle;
-	TestStruct* unknown_8; // unknown
+	DLink* unknown_8; // Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
 	uint unknown_9; // unknown
-}
-
-struct TestStruct
-{
-	int[90] buffer;
-}
-
-struct ConVar
-{
-	char* name;
-	int int_cache; // possible "is_set"?
-	float float_cache;
-	float default_value=0.0;
-	void* engine_cvar;
-
-	static assert(ConVar.sizeof==20);
 }
