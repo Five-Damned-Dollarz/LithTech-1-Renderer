@@ -268,10 +268,11 @@ void* CreateContext(RenderContextInit* context_init)
 	test_out.writeln(*context_init);
 
 	RenderContext* temp=cast(RenderContext*)calloc(1, RenderContext.sizeof);
-	temp.main_world=cast(MainWorld*)context_init.buf[0];
+	temp.main_world=cast(MainWorld*)context_init.main_world;
 
 	test_out.writeln(*temp.main_world);
 	test_out.writeln(*temp.main_world.world_bsp);
+	//test_out.writeln(temp.main_world.world_bsp.points[0..16]);
 	test_out.flush();
 
 	return temp; // softlocks at load screen if this returns null
