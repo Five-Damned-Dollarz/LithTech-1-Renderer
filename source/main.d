@@ -94,7 +94,7 @@ export Mode* GetSupportedModes()
 		//SDL_DisplayMode sdl_mode;
 		//SDL_GetDisplayMode(0, i, &sdl_mode);
 
-		mode.is_hardware=true;
+		mode.is_hardware=1;
 		strcpy(mode.filename.ptr, renderer_filename.toStringz);
 		strcpy(mode.driver_name.ptr, driver_name.toStringz);
 		strcpy(mode.display_name.ptr, display_name.toStringz);
@@ -166,7 +166,7 @@ int Init(RenderStructInit* init_struct)
 {
 	test();
 
-	//init_struct.mode.is_hardware=true;
+	//init_struct.mode.is_hardware=1;
 
 	//SDL_Init(SDL_INIT_VIDEO);
 
@@ -265,39 +265,15 @@ void* CreateContext(RenderContextInit* context_init)
 {
 	test();
 
-	struct ContextListItem
-	{
-		void* next; // possible address, might not be a list?
-		void* unknown_1; // not a list
-		void*[10] unknown_3;
-	}
-
 	test_out.writeln(*context_init);
 
-	ContextListItem* cur_item=cast(ContextListItem*)context_init.buf[0];
-	test_out.writeln(*cur_item);
-	test_out.flush();
-
-	cur_item=cast(ContextListItem*)context_init.buf[1];
-	test_out.writeln(*cur_item);
-	test_out.flush();
-
-	cur_item=cast(ContextListItem*)context_init.buf[2];
-	test_out.writeln(*cur_item);
-	test_out.flush();
-
-	/*// alloc 1072 bytes?
-	RenderContext* new_context=new RenderContext;
-	new_context.unknown_2=0x0000FFFF;
-	new_context.init_ptr=*context_init;
-
-	test_out.writeln(*new_context);
-
-	return cast(void*)new_context;*/
-
 	RenderContext* temp=cast(RenderContext*)calloc(1, RenderContext.sizeof);
-	//test_out.writeln(temp);
-	//test_out.flush();
+	temp.main_world=cast(MainWorld*)context_init.buf[0];
+
+	test_out.writeln(*temp.main_world);
+	test_out.writeln(*temp.main_world.world_bsp);
+	test_out.flush();
+
 	return temp; // softlocks at load screen if this returns null
 }
 
@@ -353,7 +329,6 @@ int RenderScene(SceneDesc* scene_desc)
 	if (_renderer.is_init!=0)
 	{
 		test_out.writeln(*scene_desc);
-		//test_out.writeln(*scene_desc.unknown_array_2);
 		test_out.flush();
 		return 1;
 	}
