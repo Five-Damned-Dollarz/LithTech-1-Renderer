@@ -4,18 +4,16 @@ import WorldBSP;
 
 import core.sys.windows.windows;
 
-extern(C) @nogc nothrow:
-
-struct RenderStructInit // final answer, the function zeros 420 bytes before filling this
+struct RenderStructInit
 {
 	//int version_;
 	Mode mode;
 	void* main_window;
 
-	static assert(RenderStructInit.sizeof==424);
+	static assert(this.sizeof==424);
 }
 
-struct Mode // confirmed to be RMode_t from basedefs
+struct Mode // RMode_t from basedefs
 {
 	byte is_hardware;
 
@@ -29,7 +27,7 @@ struct Mode // confirmed to be RMode_t from basedefs
 	uint depth;
 	Mode* next;
 
-	static assert(Mode.sizeof==420);
+	static assert(this.sizeof==420);
 }
 
 struct RenderContextInit
@@ -41,7 +39,7 @@ struct RenderContextInit
 	void*[48] buf2;
 }
 
-struct RenderContext // this is whatever we want to make it
+struct RenderContext // this is whatever we want
 {
 	char[4] unknown_1;
 	int unknown_2; // 0x0000FFFF?
@@ -50,23 +48,6 @@ struct RenderContext // this is whatever we want to make it
 	MainWorld* main_world;
 
 	//byte[1072-12] buf;
-}
-
-struct MainWorld
-{
-	void* unknown_1;
-	WorldBSP* world_bsp; // possibly?
-
-	int[5] unknown_2;
-	float[4] unknown_3;
-	int[8] unknown_4;
-
-	float[3][6] unknown_vectors_1; // maybe
-	int unknown_5;
-	void*[2] unknown_6;
-	int[2] unknown_7;
-
-	void*[64] buf;
 }
 
 struct SharedTexture
@@ -124,7 +105,7 @@ struct SceneDesc
 	void function(void* /+ModelHookData*+/ pData, void* pUser) model_hook_fnc_ptr;
 	void* model_hook_user;
 
-	static assert(SceneDesc.sizeof==240);
+	static assert(this.sizeof==240);
 }
 
 struct Rect // possibly DirectX struct?
@@ -163,6 +144,7 @@ struct DEPalette
 	//
 }
 
+extern(C)
 struct RenderDLL
 {
 	void function(void* /+DObject*+/, void* /+*(DObject + 0x34)+/) AttachmentSomething; // called by ProcessAttachment

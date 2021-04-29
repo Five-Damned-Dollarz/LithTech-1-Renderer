@@ -9,6 +9,7 @@ import core.stdc.string;
 
 import RendererTypes;
 import RendererMain;
+import WorldBSP;
 
 import bindbc.sdl;
 
@@ -57,6 +58,15 @@ void test(string pretty=__PRETTY_FUNCTION__)
 	test_out.flush();
 }
 
+void DumpRaw(void* head, uint length)
+{
+	test_out.writeln(cast(void*[])head[0..length]);
+	test_out.writeln(cast(float[])head[0..length]);
+	test_out.writeln(cast(int[])head[0..length]);
+	test_out.writeln(cast(short[])head[0..length]);
+	test_out.writeln(cast(ubyte[])head[0..length]);
+	test_out.writeln(cast(char[])head[0..length]);
+}
 
 extern(C):
 
@@ -82,8 +92,6 @@ export Mode* GetSupportedModes()
 
 	int mode_count=1; //SDL_GetNumDisplayModes(0);
 	Mode[] modes=(cast(Mode*)calloc(mode_count, Mode.sizeof))[0..mode_count]; //new Mode[mode_count];
-
-	test_out.writeln(modes.ptr);
 
 	immutable string renderer_filename="d_ren.ren";
 	immutable string driver_name="primary"; //SDL_GetCurrentVideoDriver();
@@ -270,9 +278,42 @@ void* CreateContext(RenderContextInit* context_init)
 	RenderContext* temp=cast(RenderContext*)calloc(1, RenderContext.sizeof);
 	temp.main_world=cast(MainWorld*)context_init.main_world;
 
+	import WorldBSP;
 	test_out.writeln(*temp.main_world);
+	//test_out.writeln(*cast(Buffer*)temp.main_world.unknown_1);
+	//test_out.writeln(*cast(Buffer*)(cast(Buffer*)temp.main_world.unknown_1).buf[1]); // drops you in the middle of main_bsp's surfaces?
+
 	test_out.writeln(*temp.main_world.world_bsp);
-	//test_out.writeln(temp.main_world.world_bsp.points[0..16]);
+	/*foreach(poly; temp.main_world.world_bsp.polygons[0..temp.main_world.world_bsp.polygon_count])
+	{
+		test_out.writeln(*poly);
+	}*/
+	//test_out.writeln(temp.main_world.world_bsp.unknown_1[0..16]);
+	//test_out.writeln(*cast(Buffer*)temp.main_world.world_bsp.unknown_1[0].buf[0]);
+
+	/*test_out.writeln(temp.main_world.world_bsp.nodes);
+	test_out.writeln(*temp.main_world.world_bsp.nodes);
+	test_out.writeln(temp.main_world.world_bsp.nodes.next);
+	test_out.writeln(*temp.main_world.world_bsp.nodes.next);
+	test_out.writeln(temp.main_world.world_bsp.nodes.next.next);
+	test_out.writeln(*temp.main_world.world_bsp.nodes.next.next);*/
+
+	/*WorldBSP* bsp=temp.main_world.world_bsp;
+	foreach(node; bsp.nodes[0..bsp.node_count])
+	{
+		test_out.writeln("--- New Node! ---");
+		Node* cur_node=&node;
+		while(cur_node.next !is null)
+		{
+			test_out.writeln(*cur_node);
+			cur_node=cur_node.next;
+		}
+	}*/
+
+	//DumpRaw(temp.main_world.world_bsp.unknown_1, 128);
+	//DumpRaw(temp.main_world.world_bsp.unknown_11[0], 128);
+	//DumpRaw(temp.main_world.world_bsp.unknown_11[1], 128);
+
 	test_out.flush();
 
 	return temp; // softlocks at load screen if this returns null

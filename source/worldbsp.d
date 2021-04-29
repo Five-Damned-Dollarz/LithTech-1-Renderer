@@ -1,5 +1,12 @@
 module WorldBSP;
 
+struct Object // just placeholder for now
+{
+	void*[74] buf;
+
+	static assert(this.sizeof==296);
+}
+
 struct PBlockTable // ?
 {
 	float[3] vec_1;
@@ -30,11 +37,20 @@ struct Plane
 	float distance;
 }
 
-struct Polygon
+struct Node
 {
-	ushort[2] unknown_1;
-	float[2] unknown_2;
-	int id;
+	uint flags; // unknown, (flags & 8) seems important
+	Polygon* polygons;
+	Plane* planes;
+	void* unknown_1;
+	void* unknown_2;
+	WorldBSP* bsp;
+	float[4] unknown_3;
+	Object* objects; // unsure
+	Node* next; // unsure
+	void* unknown_4;
+
+	static assert(this.sizeof==52);
 }
 
 struct Surface
@@ -43,11 +59,30 @@ struct Surface
 	void*[5] buf; // unknown
 }
 
+struct LeafList
+{
+	short portal_id;
+	ushort length;
+	ubyte* data;
+}
+
 struct Leaf
 {
 	float[10] buf;
 	float unknown_float;
 	float buf2;
+}
+
+struct Polygon
+{
+	float[3] vector_1;
+	int[5] buf;
+	float[3] vector_2;
+	int[7] buf2;
+	float[3] vector_3;
+	int[5] buf3;
+
+	static assert(this.sizeof==104);
 }
 
 struct Vector
@@ -60,16 +95,35 @@ struct Buffer // just for testing!
 	void*[16] buf;
 }
 
+struct MainWorld
+{
+	uint unknown_1; // memory used?
+	WorldBSP* world_bsp;
+
+	int[5] unknown_2;
+	float[4] unknown_3;
+	int[8] unknown_4;
+	void* unknown_5;
+
+	float[3][6] unknown_vectors_1; // maybe
+	int unknown_6;
+	void*[2] unknown_7;
+	int[2] unknown_8;
+
+	void*[64] buf;
+}
+
 struct WorldBSP
 {
-	void*[2] unknown_addresses;
+	uint unknown_0; // memory use, maybe?
+	void* next_section; // yes, in the map.dat...
 
 	// unsure of many of these
 	Plane* planes;
 	uint plane_count;
 
-	Buffer* polygons;
-	uint polygon_count;
+	Node* nodes;
+	uint node_count;
 
 	Buffer* unknown_1;
 	uint unknown_1_count;
@@ -77,8 +131,8 @@ struct WorldBSP
 	Surface* surfaces;
 	uint surface_count;
 
-	Buffer* unknown_2;
-	uint unknown_2_count;
+	LeafList* leaf_lists; // leaf lists?
+	uint leaf_list_count;
 
 	Leaf* leaves;
 	uint leaf_count;
@@ -87,12 +141,12 @@ struct WorldBSP
 	uint unknown_3_count;
 
 	uint unknown_4a;
-	void* unknown_4b;
 
-	void* unknown_5;
+	Node* nodes_duplicate; // nodes duplicate?
+	Buffer* unknown_1_duplicate; // why?
 
-	Buffer* unknown_7;
-	uint unknown_7_count;
+	Polygon** polygons; // polygons?
+	uint polygon_count;
 
 	Vector* points;
 	uint point_count;
@@ -100,8 +154,8 @@ struct WorldBSP
 	Portal* portals;
 	uint portal_count;
 
-	void* unknown_8a;
-	void* unknown_8b;
+	const char* texture_string; // combined texture string?
+	const char** textures; // array of indexes to texture_string?
 
 	uint unknown_9; // flags?
 
@@ -114,9 +168,14 @@ struct WorldBSP
 	float[3] extents_plus_min; // extents_min - 100, don't know why
 	float[3] extents_plus_max; // extents_max + 100
 
-	void*[10] unknown_12;
+	uint info_flags;
+	uint unknown_count;
 
-	PBlockTable unknown_struct_1;
+	int[4] unknown_12;
 
-	//void*[64] buf;
+	void*[4] unknown_14;
+
+	PBlockTable pblock_table;
+
+	//void*[16] buf;
 }
