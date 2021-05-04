@@ -42,17 +42,90 @@ struct RenderContextInit
 struct RenderContext // this is whatever we want
 {
 	char[4] unknown_1;
-	int unknown_2; // 0x0000FFFF?
-	//RenderContextInit init_ptr;
+	int unknown_2; // 0x0000FFFF? "framecode"
 
 	MainWorld* main_world;
+}
 
-	//byte[1072-12] buf;
+enum uint DTXVersion=-2;
+enum DTXMipMapCount=4;
+
+struct Colour
+{
+	ubyte a, r, g, b;
+}
+
+struct TextureData
+{
+	void* unknown_0;
+	void* unknown_1;
+
+	int dtx_version;
+	short width;
+	short height;
+	short mipmap_count;
+
+	uint flags;
+	int surface_type;
+
+	short group;
+	short mipmaps_used;
+
+	short alpha_cutoff;
+	short alpha_average;
+
+	int unknown_2;
+	DLink unknown_3;
+
+	int unknown_4a;
+
+	struct Palette
+	{
+		DLink link; // unknown
+		void*[3] unknown;
+		Colour[256] colours;
+	}
+	Palette* palette; // hopefully
+
+	void* unknown_4b;
+
+	SharedTexture* texture_ref;
+
+	int unknown_5;
+
+	struct MipMapData
+	{
+		int width;
+		int height;
+		int stride; // maybe
+		ubyte* pixels;
+		ubyte* alpha;
+	}
+	MipMapData[4] mipmap_data;
+
+	ubyte* pixels;
+
+	short[32] buf;
 }
 
 struct SharedTexture
 {
-	int[34] buf;
+	Buffer* ref1; // [1] = engine allocation reference, if [2] == null, load new texture?
+	TextureData* engine_data;
+	Buffer* ref2;
+	DLink link;
+
+	// possibly functions here?
+
+	// [40] = width
+	// [44] = height
+	// [48] = bbp
+	// [56] is used somehow
+	Buffer*[5] buf1;
+	short width, height, bpp; // unsure
+	Buffer*[34] buf2;
+
+	//static assert(this.sizeof>=40);
 }
 
 enum DrawMode : int
@@ -73,11 +146,12 @@ struct SceneDesc
 	uint* ticks_render_particles;
 	uint* ticks_render_unknown;
 
-	// global lighting?
-	float[3] global_light;
-	float[3] global_light_scale;
+	float[3] unknown_1;
+	float[3] unknown_2;
 	RenderContext* render_context;
-	float[9] unknown_array_1;
+	float[3] global_light_colour;
+	float[3] global_light_direction;
+	float[3] global_light_scale;
 	float[3] camera_unknown;
 
 	// frame timing
@@ -97,7 +171,7 @@ struct SceneDesc
 	float[3] camera_position;
 	float[4] camera_rotation;
 
-	// object list
+	// object list (for DrawMode.ObjectList)
 	void** obj_list_head;
 	int obj_count;
 
@@ -148,8 +222,8 @@ extern(C)
 struct RenderDLL
 {
 	void function(void* /+DObject*+/, void* /+*(DObject + 0x34)+/) AttachmentSomething; // called by ProcessAttachment
-	void* function(void*) SetPanningSkyInfo; // GetTexture?
-	void function() SomethingPanningSkyInfo; // FreeTexture?
+	TextureData* function(SharedTexture*, void* /+out bool?+/) GetTexture;
+	void function(SharedTexture*) FreeTexture;
 	void function() UnknownFunc_1;
 	void function() UnknownFunc_2;
 	void function() UnknownFunc_3;
@@ -185,7 +259,7 @@ struct RenderDLL
 	int function() IsInOptimized2D;
 	int function(SceneDesc*) RenderScene;
 	void function(int argc, char** args) RenderCommand;
-	uint function(const char*) GetHook;
+	void* function(const char*) GetHook; // must handle "LPDIRECTDRAW" (IDirectDraw4*) and "BACKBUFFER" (IDirectDrawSurface4*) to support Smack video
 	void function() SwapBuffers;
 	int function() GetInfoFlags;
 	int function() GetBufferFormat;

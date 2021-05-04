@@ -1,5 +1,7 @@
 module WorldBSP;
 
+import RendererTypes: DLink;
+
 struct Object // just placeholder for now
 {
 	void*[74] buf;
@@ -60,24 +62,25 @@ struct Node
 	Polygon* polygons;
 	Plane* planes;
 	int unknown_1;
-	void* unknown_2; // possible address?
+	Leaf* viewer_leaf; // leaf a camera's currently in? mostly null
 	WorldBSP* bsp;
-	float[4] unknown_3;
+	float[3] center;
+	float radius;
 	Object* objects; // unsure
-	Node* next;
+	Node*[2] next;
 
-	static assert(this.sizeof==48);
+	static assert(this.sizeof==52);
 }
 
 struct Surface
 {
 	float[3][6] opq_map;
-	void* unknown_1;
-	Plane* plane; // unsure?
+	void* unknown_1; // texture effect?
+	Plane* plane;
 	uint flags;
 	ushort texture_id;
 	ushort texture_flags;
-	uint unknown_2;
+	uint index;
 
 	static assert(this.sizeof==92);
 }
@@ -93,36 +96,60 @@ struct Leaf
 {
 	float[4] vector;
 	LeafList* leaf_list; // pointer to our leaf list?
-	Buffer* unknown_2; // start?
+	Buffer* unknown_2; // start? -- in place DLink?
 	Buffer* unknown_3; // end?
 	Buffer* unknown_4; // next, if start != end?
 	Buffer* unknown_5; // entry to Buffer** unknown_3?
-	int unknown_6;
+	int unknown_6; // set to 0 at the start of each frame draw
 	Buffer* unknown_7;
 	int unknown_8;
 
 	static assert(this.sizeof==48);
 }
 
-struct Polygon
+struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 {
-	float[4] vector_1; // looks like (WorldModel?) node rotation?
-	Surface* surface;
-	int[3] buf1;
-	float[3] vector_2; // from polygon list
-	int[2] buf2;
-	ushort[2] unknown_1; // [1] = some id?
-	short[2] unknown_2; // [0] = maybe next id, to create loops?
-	int[3] buf3;
-	float[3] vector_3; // from point list?
-	int[5] buf4;
+	float[3] center;
+	float radius;
 
-	static assert(this.sizeof==104);
+	Surface* surface;
+
+	float[3] unknown_1;
+	float[3] polygon_list;
+	void*[2] unknown_2;
+
+	ushort unknown; // set to 0 on frame start?
+	ushort frame_code;
+
+	Buffer*[2] unknown_3;
+
+	ushort vertex_count;
+	ushort vertex_extra;
+
+	struct DiskVert
+	{
+		Vector4* vertex_data;
+		Vector4 unknown_1;
+		ubyte[4] unknown_2;
+	}
+	DiskVert* vertices;
+
+	@property DiskVert[] DiskVerts() return
+	{
+		return (cast(DiskVert*)&vertices)[0..vertex_count+vertex_extra];
+	}
+
+	static assert(this.sizeof>=72); // smallest runtime case possible should be 188?
 }
 
 struct Vector
 {
 	float[3] xyz;
+}
+
+struct Vector4
+{
+	float[4] xyzw; // w is set to 0 on frame start when called from WorldBSP.Points[n]
 }
 
 struct Buffer // just for testing!
@@ -132,23 +159,28 @@ struct Buffer // just for testing!
 
 struct MainWorld
 {
-	uint unknown_1; // memory used?
+	uint memory_used;
 	WorldBSP* world_bsp;
 
-	ushort[2] unknown_2; // not an address!
+	ushort[2] unknown_2; // not an address?
 	int unknown_2_count;
 
-	int[3] unknown_3;
-	float[4] unknown_4;
-	int[8] unknown_5;
+	int[4] unknown_3;
+	float[3] unknown_4;
+
+	Buffer* unknown_4a;
+	uint unknown_4a_count;
+
+	int[6] unknown_5;
 	void* unknown_6;
 
-	float[3][6] unknown_vectors_1; // maybe
+	float[3][2] unknown_vectors_1; // maybe
+	float[3][4] extents;
 	int unknown_7;
 	void* unknown_8;
 
-	Buffer** unknown_9;
-	int unknown_9_count;
+	WorldData** world_models;
+	int world_model_count;
 
 	//int[2] unknown_9;
 
@@ -157,9 +189,57 @@ struct MainWorld
 	static assert(this.sizeof>=168);
 }
 
+struct UnknownList
+{
+	Buffer* prev;
+	Buffer* next;
+	UnknownObject* data;
+
+	Buffer*[3] buf;
+
+	static assert(this.sizeof==24);
+}
+
+struct UnknownObject
+{
+	UnknownObject* prev;
+	UnknownObject* next;
+
+	int unknown_0;
+
+	DLink link;
+	UnknownList* list; // ?
+
+	short[2] unknown_1;
+	int unknown_2;
+
+	UnknownObject* root; // ?
+	void*[4] unknown_3;
+
+	float[3] world_translation;
+	float[4] rotation; // unknown
+	float[3] unknown_4; // unknown
+
+	short[4] unknown_5;
+	short[2] frame_code; // maybe?
+
+	// [108] is set to 0 on frame start
+
+	static assert(this.sizeof>=108);
+}
+
+struct WorldData
+{
+	WorldBSP*[2] objs; // orig + transformed?
+
+	// DLink?; may not even be part of this struct at all?
+	void*[2] refs; //  [0, 1] = ???
+	WorldData* self;
+}
+
 struct WorldBSP
 {
-	uint unknown_0; // memory use, maybe?
+	uint memory_used; // memory use, maybe?
 	void* next_section; // yes, in the map.dat...
 
 	Plane* planes;
@@ -168,7 +248,7 @@ struct WorldBSP
 	Node* nodes;
 	uint node_count;
 
-	Buffer* unknown_1;
+	UnknownList* unknown_1; // world object related? must have 24 byte stride
 	uint unknown_1_count;
 
 	Surface* surfaces;
@@ -191,16 +271,17 @@ struct WorldBSP
 	Polygon** polygons; // polygons?
 	uint polygon_count;
 
-	Vector* points;
+	Vector4* points;
 	uint point_count;
 
 	Portal* portals;
 	uint portal_count;
 
-	const char* texture_string; // combined texture string?
-	const char** textures; // array of indexes to texture_string?
+	const char* textures_begin; // combined texture string
+	const char** textures; // array of indexes to texture_string
+	uint texture_count;
 
-	uint unknown_9; // flags?
+	/// No clue if this is actually here, or pointed to
 
 	int[26] unknown_10;
 	void*[2] unknown_11;
@@ -214,9 +295,12 @@ struct WorldBSP
 	uint info_flags;
 	uint unknown_count;
 
-	int[4] unknown_12;
+	//int unknown_12;
+	float[4] unknown_12;
 
-	void*[3] unknown_14;
+	void* unknown_13;
+	uint world_flags;
+	void* unknown_14;
 
 	ubyte* leaf_list_contents; // dense packed 1D array, LeafList.data[0..LeafList.length]
 
