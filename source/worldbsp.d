@@ -1,6 +1,6 @@
 module WorldBSP;
 
-import RendererTypes: DLink;
+import RendererTypes: DLink, Buffer;
 
 struct Object // just placeholder for now
 {
@@ -150,11 +150,6 @@ struct Vector
 struct Vector4
 {
 	float[4] xyzw; // w is set to 0 on frame start when called from WorldBSP.Points[n]
-}
-
-struct Buffer // just for testing!
-{
-	Buffer*[32] buf;
 }
 
 struct MainWorld

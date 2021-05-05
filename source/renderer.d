@@ -3,6 +3,7 @@ module RendererMain;
 import bindbc.sdl;
 
 import RendererTypes;
+import Texture;
 
 class Renderer
 {

@@ -1,8 +1,14 @@
 module RendererTypes;
 
 import WorldBSP;
+import Texture;
 
 import core.sys.windows.windows;
+
+struct Buffer // just for testing!
+{
+	Buffer*[32] buf;
+}
 
 struct RenderStructInit
 {
@@ -45,87 +51,6 @@ struct RenderContext // this is whatever we want
 	int unknown_2; // 0x0000FFFF? "framecode"
 
 	MainWorld* main_world;
-}
-
-enum uint DTXVersion=-2;
-enum DTXMipMapCount=4;
-
-struct Colour
-{
-	ubyte a, r, g, b;
-}
-
-struct TextureData
-{
-	void* unknown_0;
-	void* unknown_1;
-
-	int dtx_version;
-	short width;
-	short height;
-	short mipmap_count;
-
-	uint flags;
-	int surface_type;
-
-	short group;
-	short mipmaps_used;
-
-	short alpha_cutoff;
-	short alpha_average;
-
-	int unknown_2;
-	DLink unknown_3;
-
-	int unknown_4a;
-
-	struct Palette
-	{
-		DLink link; // unknown
-		void*[3] unknown;
-		Colour[256] colours;
-	}
-	Palette* palette; // hopefully
-
-	void* unknown_4b;
-
-	SharedTexture* texture_ref;
-
-	int unknown_5;
-
-	struct MipMapData
-	{
-		int width;
-		int height;
-		int stride; // maybe
-		ubyte* pixels;
-		ubyte* alpha;
-	}
-	MipMapData[4] mipmap_data;
-
-	ubyte* pixels;
-
-	short[32] buf;
-}
-
-struct SharedTexture
-{
-	Buffer* ref1; // [1] = engine allocation reference, if [2] == null, load new texture?
-	TextureData* engine_data;
-	Buffer* ref2;
-	DLink link;
-
-	// possibly functions here?
-
-	// [40] = width
-	// [44] = height
-	// [48] = bbp
-	// [56] is used somehow
-	Buffer*[5] buf1;
-	short width, height, bpp; // unsure
-	Buffer*[34] buf2;
-
-	//static assert(this.sizeof>=40);
 }
 
 enum DrawMode : int
@@ -263,6 +188,7 @@ struct RenderDLL
 	void function() SwapBuffers;
 	int function() GetInfoFlags;
 	int function() GetBufferFormat;
+	/+ none of these should be SharedTexture! +/
 	SharedTexture* function(int, int) CreateSurface;
 	void function(SharedTexture*) DeleteSurface;
 	void function(SharedTexture*, int*, int*, int*) GetSurfaceInfo;
@@ -274,6 +200,7 @@ struct RenderDLL
 	void function() UnlockScreen;
 	void function(BlitRequest*) BlitToScreen;
 	void function(const char*) MakeScreenShot;
+	/+ --- +/
 	void function() ReadConsoleVariables;
 	void* unknown_3;
 	SharedTexture* envmap_texture;
