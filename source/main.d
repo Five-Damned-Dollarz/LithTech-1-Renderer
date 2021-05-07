@@ -9,9 +9,12 @@ import core.stdc.string;
 
 import RendererTypes;
 import RendererMain;
+import VulkanRender;
 import WorldBSP;
+import Texture;
 
 import bindbc.sdl;
+import erupted.vulkan_lib_loader;
 
 extern(Windows)
 BOOL DllMain(HINSTANCE hInstance, ULONG ulReason, LPVOID pvReserved)
@@ -25,6 +28,8 @@ BOOL DllMain(HINSTANCE hInstance, ULONG ulReason, LPVOID pvReserved)
 			auto ret=loadSDL();
 			test_out.writeln(ret);
 			test_out.flush();
+
+			loadGlobalLevelFunctions();
 
 			SDL_Init(SDL_INIT_VIDEO);
 
@@ -174,7 +179,7 @@ int Init(RenderStructInit* init_struct)
 {
 	test();
 
-	//init_struct.mode.is_hardware=1;
+	init_struct.mode.is_hardware=1;
 
 	//SDL_Init(SDL_INIT_VIDEO);
 
@@ -185,7 +190,8 @@ int Init(RenderStructInit* init_struct)
 	_renderer.screen_width=init_struct.mode.width;
 	_renderer.screen_height=init_struct.mode.height;
 
-	_renderer_inst=new Renderer;
+	_renderer_inst=new VulkanRenderer;
+	//_renderer_inst=new Renderer;
 	_renderer_inst.InitFrom(_window_main);
 
 	//_renderer.screen_depth=init_struct.mode.depth;
@@ -242,13 +248,51 @@ void SetSoftSky(SharedTexture** textures)
 	test_out.flush();
 }
 
-void BindTexture(SharedTexture* texture, int unknown) // SharedTexture here is NOT the same as a surface
+void BindTexture(SharedTexture* texture, int unknown)
+	in(texture !is null)
 {
-	//test();
+	test();
+	test_out.writeln(*texture);
 
-	//test_out.writeln(texture);
-	//test_out.writeln(cast(int)unknown);
-	//test_out.flush();
+	if (texture.ref2)
+	{
+		RenderTexture* render_texture=texture.ref2;
+		TextureData* texture_data=_renderer.GetTexture(texture, null);
+
+		if (texture_data !is null)
+		{
+			// upload?
+			test_out.writeln(*texture_data);
+			//test_out.writeln(*render_texture);
+		}
+
+		_renderer.FreeTexture(texture);
+	}
+	else
+	{
+		// create a new RenderTexture
+		TextureData* texture_data=_renderer.GetTexture(texture, null);
+
+		if (auto renderer=cast(VulkanRenderer)_renderer_inst)
+		{
+			/+RenderTexture r_texture=new RenderTexture();
+			// r_texture.Create(texture, texture_data);
+			g_TextureManager.textures~=r_texture;
+
+			import erupted;
+			import VulkanRender;
+
+			(cast(VulkanRenderer)_renderer_inst).CreateTextureImage(texture, r_texture.image, r_texture.memory);
+			test_out.writeln(r_texture.image, " ", r_texture.memory);+/
+
+			/*renderer.CreateTextureImage(texture);
+			renderer.CreateTextureImageView();
+			renderer.CreateTextureSampler();
+			renderer.CreateDescriptorSets();*/
+		}
+
+		_renderer.FreeTexture(texture);
+	}
 }
 
 void UnbindTexture(SharedTexture*)
@@ -270,51 +314,44 @@ int SetMasterPalette(SharedTexture* unknown)
 }
 
 void* CreateContext(RenderContextInit* context_init)
+	in(context_init !is null)
 {
 	test();
 
 	test_out.writeln(*context_init);
 
 	RenderContext* temp=cast(RenderContext*)calloc(1, RenderContext.sizeof);
-	temp.main_world=cast(MainWorld*)context_init.main_world;
+	temp.main_world=context_init.main_world;
 
 	import WorldBSP;
 	test_out.writeln(*temp.main_world);
-	//test_out.writeln(*cast(Buffer*)temp.main_world.unknown_1);
-	//test_out.writeln(*cast(Buffer*)(cast(Buffer*)temp.main_world.unknown_1).buf[1]); // drops you in the middle of main_bsp's surfaces?
 
-	test_out.writeln(*temp.main_world.world_bsp);
-	/*foreach(poly; temp.main_world.world_bsp.polygons[0..temp.main_world.world_bsp.polygon_count])
+	WorldBSP* bsp=temp.main_world.world_bsp;
+	test_out.writeln(*bsp);
+
+	(cast(VulkanRenderer)_renderer_inst).CreateBSPVertexBuffer(temp.main_world.world_bsp);
+
+	/*foreach(node; bsp.nodes[0..bsp.node_count])
 	{
-		test_out.writeln(*poly);
-	}*/
-	//test_out.writeln(temp.main_world.world_bsp.unknown_1[0..16]);
-	//test_out.writeln(*cast(Buffer*)temp.main_world.world_bsp.unknown_1[0].buf[0]);
-
-	/*test_out.writeln(temp.main_world.world_bsp.nodes);
-	test_out.writeln(*temp.main_world.world_bsp.nodes);
-	test_out.writeln(temp.main_world.world_bsp.nodes.next);
-	test_out.writeln(*temp.main_world.world_bsp.nodes.next);
-	test_out.writeln(temp.main_world.world_bsp.nodes.next.next);
-	test_out.writeln(*temp.main_world.world_bsp.nodes.next.next);*/
-
-	/*WorldBSP* bsp=temp.main_world.world_bsp;
-	foreach(node; bsp.nodes[0..bsp.node_count])
-	{
-		test_out.writeln("--- New Node! ---");
-		Node* cur_node=&node;
-		while(cur_node.next !is null)
-		{
-			test_out.writeln(*cur_node);
-			cur_node=cur_node.next;
-		}
+		test_out.writeln(node);
+		if (node.viewer_leaf !is null)
+			test_out.writeln(*cast(Leaf*)node.viewer_leaf);
 	}*/
 
-	//DumpRaw(temp.main_world.world_bsp.unknown_1, 128);
-	//DumpRaw(temp.main_world.world_bsp.unknown_11[0], 128);
-	//DumpRaw(temp.main_world.world_bsp.unknown_11[1], 128);
+	//test_out.writeln(cast(Buffer*)bsp.nodes_duplicate.unknown_2);
 
-	test_out.flush();
+	//test_out.writeln(bsp.leaves[0..bsp.leaf_count]);
+	//test_out.writeln(bsp.leaf_lists[0..bsp.leaf_list_count]);
+
+	test_out.writeln(*bsp.polygons[7]);
+	test_out.writeln(bsp.polygons[7].DiskVerts());
+	foreach(poly; bsp.polygons[7].DiskVerts())
+	{
+		test_out.writeln(*poly.vertex_data);
+	}
+
+	//foreach(str; obj.textures[0..obj.texture_count])
+	//	test_out.writeln(str.fromStringz);
 
 	return temp; // softlocks at load screen if this returns null
 }
@@ -365,6 +402,7 @@ int IsInOptimized2D()
 }
 
 int RenderScene(SceneDesc* scene_desc)
+	in(scene_desc !is null)
 {
 	test();
 
@@ -372,21 +410,28 @@ int RenderScene(SceneDesc* scene_desc)
 	{
 		test_out.writeln(*scene_desc);
 		test_out.flush();
+
+		_renderer_inst.RenderScene(scene_desc);
 		return 1;
 	}
 
 	return 0;
 }
 
-void RenderCommand(int argc, char** args)
+void RenderCommand(int argc, char** args) // this is for RCom console command
 {
 	test();
+
+	import std.conv;
+
+	foreach(arg; args[0..argc])
+		test_out.writeln(to!string(arg));
 }
 
-uint GetHook(const char*)
+void* GetHook(const char*)
 {
 	test();
-	return 0;
+	return null;
 }
 
 void SwapBuffers()
@@ -418,36 +463,19 @@ void DeleteSurface(SharedTexture* surface)
 }
 
 void GetSurfaceInfo(SharedTexture* surface, int* width, int* height, int* pitch)
+	in(surface !is null)
 {
-	if (surface is null) return;
-
-	SDL_Surface* trans_surf=cast(SDL_Surface*)surface;
-
-	*width=trans_surf.w;
-	*height=trans_surf.h;
-	*pitch=trans_surf.pitch;
+	_renderer_inst.GetSurfaceInfo(surface, width, height, pitch);
 }
 
 void* LockSurface(SharedTexture* texture)
 {
-	SDL_Surface* surface=cast(SDL_Surface*)texture;
-
-	if (surface is null)
-		return null;
-
-	if (SDL_LockSurface(surface))
-		return null;
-
-	return cast(void*)surface.pixels;
+	return _renderer_inst.LockSurface(texture);
 }
 
 void UnlockSurface(SharedTexture* texture)
 {
-	if (texture is null)
-		return;
-
-	SDL_Surface* surface=cast(SDL_Surface*)texture;
-	SDL_UnlockSurface(surface);
+	_renderer_inst.UnlockSurface(texture);
 }
 
 int OptimizeSurface(void*, uint)
@@ -463,40 +491,18 @@ void UnoptimizeSurface(void*)
 
 int LockScreen(int left, int top, int right, int bottom, void** pixels, int* pitch)
 {
-	if (SDL_LockSurface(_renderer_inst._surface_main)==0)
-	{
-		void* start_byte=_renderer_inst._surface_main.pixels;
-		start_byte+=(top*_renderer_inst._surface_main.pitch)+(left << 1);
-		if (pixels !is null)
-			*pixels=start_byte;
-		if (pitch !is null)
-			*pitch=_renderer_inst._surface_main.pitch;
-
-		return 1;
-	}
-
-	return 0;
+	return _renderer_inst.LockScreen(left, top, right, bottom, pixels, pitch);
 }
 
 void UnlockScreen()
 {
-	SDL_UnlockSurface(_renderer_inst._surface_main);
+	_renderer_inst.UnlockScreen();
+	//SDL_UnlockSurface(_renderer_inst._surface_main);
 }
 
 void BlitToScreen(BlitRequest* blit_request)
 {
-	SDL_Surface* surface=cast(SDL_Surface*)blit_request.surface_ptr;
-	SDL_Surface* conv_surf=SDL_ConvertSurface(surface, _renderer_inst._surface_main.format, 0);
-
-	Rect* source_rect=cast(Rect*)blit_request.source_ptr;
-	Rect* dest_rect=cast(Rect*)blit_request.dest_ptr;
-
-	SDL_Rect src_rect=SDL_Rect(source_rect.x1, source_rect.y1, source_rect.x2-source_rect.x1, source_rect.y2-source_rect.y1);
-	SDL_Rect dst_rect=SDL_Rect(dest_rect.x1, dest_rect.y1, dest_rect.x2-dest_rect.x1, dest_rect.y2-dest_rect.y1);
-
-	SDL_BlitScaled(conv_surf, &src_rect, _renderer_inst._surface_main, &dst_rect);
-
-	SDL_FreeSurface(conv_surf);
+	_renderer_inst.BlitToScreen(blit_request);
 }
 
 void MakeScreenShot(const char* screenshot_filename)

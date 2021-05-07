@@ -2,6 +2,8 @@ module WorldBSP;
 
 import RendererTypes: DLink, Buffer;
 
+import gl3n.linalg;
+
 struct Object // just placeholder for now
 {
 	void*[74] buf;
@@ -46,13 +48,13 @@ struct Portal
 
 	UnknownStruct* unknown_ptr;
 	short[4] unknown_1;
-	float[3] position;
+	vec3 position;
 	short[6] unknown_2;
 }
 
 struct Plane
 {
-	float[3] vector;
+	vec3 vector;
 	float distance;
 }
 
@@ -64,7 +66,7 @@ struct Node
 	int unknown_1;
 	Leaf* viewer_leaf; // leaf a camera's currently in? mostly null
 	WorldBSP* bsp;
-	float[3] center;
+	vec3 center;
 	float radius;
 	Object* objects; // unsure
 	Node*[2] next;
@@ -74,7 +76,7 @@ struct Node
 
 struct Surface
 {
-	float[3][6] opq_map;
+	vec3[6] opq_map;
 	void* unknown_1; // texture effect?
 	Plane* plane;
 	uint flags;
@@ -94,7 +96,7 @@ struct LeafList
 
 struct Leaf
 {
-	float[4] vector;
+	float[4] vector; // center + radius?
 	LeafList* leaf_list; // pointer to our leaf list?
 	Buffer* unknown_2; // start? -- in place DLink?
 	Buffer* unknown_3; // end?
@@ -109,13 +111,13 @@ struct Leaf
 
 struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 {
-	float[3] center;
+	vec3 center;
 	float radius;
 
 	Surface* surface;
 
 	float[3] unknown_1;
-	float[3] polygon_list;
+	vec3 polygon_list; // from PolygonList in the dat
 	void*[2] unknown_2;
 
 	ushort unknown; // set to 0 on frame start?
@@ -128,15 +130,15 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 
 	struct DiskVert
 	{
-		Vector4* vertex_data;
-		Vector4 unknown_1;
+		vec4* vertex_data;
+		vec4 unknown_1;
 		ubyte[4] unknown_2;
 	}
-	DiskVert* vertices;
+	DiskVert vertices;
 
 	@property DiskVert[] DiskVerts() return
 	{
-		return (cast(DiskVert*)&vertices)[0..vertex_count+vertex_extra];
+		return (&vertices)[0..(vertex_count+vertex_extra)];
 	}
 
 	static assert(this.sizeof>=72); // smallest runtime case possible should be 188?
@@ -145,11 +147,6 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 struct Vector
 {
 	float[3] xyz;
-}
-
-struct Vector4
-{
-	float[4] xyzw; // w is set to 0 on frame start when called from WorldBSP.Points[n]
 }
 
 struct MainWorld
@@ -161,7 +158,7 @@ struct MainWorld
 	int unknown_2_count;
 
 	int[4] unknown_3;
-	float[3] unknown_4;
+	float[3] unknown_4; // fog related?
 
 	Buffer* unknown_4a;
 	uint unknown_4a_count;
@@ -170,7 +167,7 @@ struct MainWorld
 	void* unknown_6;
 
 	float[3][2] unknown_vectors_1; // maybe
-	float[3][4] extents;
+	vec3[4] extents;
 	int unknown_7;
 	void* unknown_8;
 
@@ -211,7 +208,7 @@ struct UnknownObject
 	UnknownObject* root; // ?
 	void*[4] unknown_3;
 
-	float[3] world_translation;
+	vec3 world_translation;
 	float[4] rotation; // unknown
 	float[3] unknown_4; // unknown
 
@@ -266,7 +263,7 @@ struct WorldBSP
 	Polygon** polygons; // polygons?
 	uint polygon_count;
 
-	Vector4* points;
+	vec4* points; // w is set to 0 on frame start when called from WorldBSP.Points[n]
 	uint point_count;
 
 	Portal* portals;
@@ -281,11 +278,11 @@ struct WorldBSP
 	int[26] unknown_10;
 	void*[2] unknown_11;
 
-	float[3] extents_min;
-	float[3] extents_max;
+	vec3 extents_min;
+	vec3 extents_max;
 
-	float[3] extents_plus_min; // extents_min - 100, don't know why
-	float[3] extents_plus_max; // extents_max + 100
+	vec3 extents_plus_min; // extents_min - 100, don't know why
+	vec3 extents_plus_max; // extents_max + 100
 
 	uint info_flags;
 	uint unknown_count;

@@ -24,7 +24,7 @@ struct DTXHeader
 	int version_;
 	ushort width;
 	ushort height;
-	ushort mipmap_count; // or palette bbp?
+	ushort mipmap_count;
 	DTXFlags flags;
 	uint flags_other; // defined by the game/object.lto
 	short group;
@@ -89,7 +89,47 @@ struct SharedTexture
 	//static assert(this.sizeof>=40); // 64/68?
 }
 
-struct RenderTexture
+ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int height, out int channels)
 {
-	Buffer buf;
+	width=texture.header.width;
+	height=texture.header.height;
+	channels=4; // in this project we know DTX is always indexed A8R8G8B8
+
+	size_t image_size=width*height*channels;
+	// get pixels
+	ubyte[] pixels=new ubyte[image_size];
+	uint[] pixel_view=(cast(uint*)pixels.ptr)[0..(image_size/4)];
+	foreach(i, pixel; texture.mipmap_data[0].pixels[0..(image_size/4)])
+	{
+		Colour pixel_colour=texture.palette.colours[pixel];
+		ubyte pixel_alpha=0xFF;
+		if (texture.header.flags & DTXFlags.AlphaMasks)
+		{
+			pixel_alpha=texture.mipmap_data[0].alpha[i/2];
+			if (i & 1)
+				pixel_alpha>>=2;
+			pixel_alpha&=0xF;
+			pixel_alpha|=pixel_alpha << 4;
+		}
+		pixel_view[i]=pixel_colour.r << 24 | pixel_colour.g << 16 | pixel_colour.b << 8 | pixel_alpha;
+	}
+	return pixels;
 }
+
+import erupted;
+
+class RenderTexture
+{
+	public VkImage image;
+	public VkDeviceMemory memory;
+	VkImageView[VkFormat] image_view;
+
+	SharedTexture* texture_ref;
+}
+
+class TextureManager
+{
+	public RenderTexture[] textures;
+}
+
+__gshared TextureManager g_TextureManager=new TextureManager();
