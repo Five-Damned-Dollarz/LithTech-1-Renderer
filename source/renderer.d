@@ -29,6 +29,11 @@ public:
 
 	void SwapBuffers()
 	{
+		/+
+		// check for keys to rotate selected texture
+		// splat a texture here
+		+/
+
 		SDL_Texture* buffer=SDL_CreateTextureFromSurface(_renderer, _surface_main);
 		SDL_RenderCopy(_renderer, buffer, null, null);
 		SDL_DestroyTexture(buffer);
@@ -48,6 +53,16 @@ public:
 		//SDL_Quit();
 	}
 
+	void* CreateSurface(const int width, const int height)
+	{
+		return SDL_CreateRGBSurfaceWithFormat(0, width, height, 16, SDL_PIXELFORMAT_RGB565);
+	}
+
+	void DeleteSurface(void* surface)
+	{
+		SDL_FreeSurface(cast(SDL_Surface*)surface);
+	}
+
 	void* LockSurface(void* texture)
 	{
 		SDL_Surface* surface=cast(SDL_Surface*)texture;
@@ -61,7 +76,7 @@ public:
 		return cast(void*)surface.pixels;
 	}
 
-	void UnlockSurface(SharedTexture* texture)
+	void UnlockSurface(void* texture)
 	{
 		if (texture is null)
 			return;

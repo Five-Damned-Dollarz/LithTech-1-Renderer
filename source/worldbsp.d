@@ -1,6 +1,7 @@
 module WorldBSP;
 
 import RendererTypes: DLink, Buffer;
+import Model;
 
 import gl3n.linalg;
 
@@ -41,15 +42,18 @@ struct Portal
 {
 	struct UnknownStruct
 	{
-		short[2] unknown_1;
+		//short[2] unknown_1;
+		void* unknown;
 		void* unknown_ptr;
 		int[2] unknown_2;
+		void[16] what;
 	}
 
 	UnknownStruct* unknown_ptr;
-	short[4] unknown_1;
+	int unknown_1;
+	int index;
 	vec3 position;
-	short[6] unknown_2;
+	vec3 dimensions;
 }
 
 struct Plane
@@ -79,7 +83,7 @@ struct Surface
 	vec3[6] opq_map;
 	void* unknown_1; // texture effect?
 	Plane* plane;
-	uint flags;
+	SurfaceFlags flags;
 	ushort texture_id;
 	ushort texture_flags;
 	uint index;
@@ -132,21 +136,21 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 	{
 		vec4* vertex_data;
 		vec4 unknown_1;
-		ubyte[4] unknown_2;
+		ubyte[4] colour;
 	}
-	DiskVert vertices;
+	DiskVert vertices; // this is intended to be drawn as a triangle fan: [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], etc.
 
-	@property DiskVert[] DiskVerts() return
+	@property DiskVert[] DiskVerts() return // these seem unsplit
 	{
-		return (&vertices)[0..(vertex_count+vertex_extra)];
+		return (&vertices)[0..(vertex_count)];
+	}
+
+	@property DiskVert[] DiskExtras() return // these are broken up into smaller triangles, possibly related to FixTJunc CVar?
+	{
+		return (&vertices)[(vertex_count)..(vertex_count+vertex_extra)];
 	}
 
 	static assert(this.sizeof>=72); // smallest runtime case possible should be 188?
-}
-
-struct Vector
-{
-	float[3] xyz;
 }
 
 struct MainWorld
@@ -183,41 +187,61 @@ struct MainWorld
 
 struct UnknownList
 {
-	Buffer* prev;
-	Buffer* next;
+	UnknownList* prev;
+	UnknownList* next;
 	UnknownObject* data;
 
-	Buffer*[3] buf;
+	Node* node;
+	UnknownList*[2] buf; // [0] = Node*? [1/2] = other entries in the list?
 
 	static assert(this.sizeof==24);
 }
 
-struct UnknownObject
+struct UnknownObject // WorldModel
 {
-	UnknownObject* prev;
-	UnknownObject* next;
-
-	int unknown_0;
-
 	DLink link;
+	DLink link_unknown; // maybe not even a link?
 	UnknownList* list; // ?
 
-	short[2] unknown_1;
-	int unknown_2;
+	Buffer* unknown_1;
 
+	Buffer* unknown_2; // attachment?
 	UnknownObject* root; // ?
-	void*[4] unknown_3;
+
+	ModelFlags flags;
+
+	void* unknown_3a;
+	void* unknown_3b;
+	Buffer* attachments; // pragma(msg, attachments.offsetof==52);
 
 	vec3 world_translation;
-	float[4] rotation; // unknown
-	float[3] unknown_4; // unknown
+	float[4] rotation;
+	float[3] scale;
 
 	short[4] unknown_5;
-	short[2] frame_code; // maybe?
+	short[3] frame_code; // [108] is set to 0 on frame start
 
-	// [108] is set to 0 on frame start
+align(2):
+	ObjectType type_id;
+	void*[6] unknown_6;
+	int unknown_7;
+	mat4 mat4_unknown_1; // ?
 
+	void*[23] buf1;
+
+	WorldData* bsp;
+
+	mat4 mat4_unknown_2;
+	mat4 mat4_unknown_3;
+
+	//Buffer[4] buf2;
+
+	//pragma(msg, this.sizeof);
 	static assert(this.sizeof>=108);
+	static assert(flags.offsetof==40);
+	static assert(type_id.offsetof==110);
+	// possibly 300 byte stride for one of the object types?
+	// 428-432 stride?
 }
 
 struct WorldData

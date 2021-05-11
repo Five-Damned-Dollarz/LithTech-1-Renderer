@@ -2,6 +2,9 @@ module RendererTypes;
 
 import WorldBSP;
 import Texture;
+import vk.Surface;
+
+import gl3n.linalg;
 
 import core.sys.windows.windows;
 
@@ -86,15 +89,15 @@ struct SceneDesc
 	// unknown
 	float[9] unkown_matrix;
 	float[3] unknown_vector;
-	int* unknown_array_2;
+	UnknownObject** unknown_array_2; // world model array?
 	int unknown_count;
 
 	// camera stuff
 	Rect view_rect;
 	float fov_x, fov_y;
 	float far_clipping_plane;
-	float[3] camera_position;
-	float[4] camera_rotation;
+	vec3 camera_position;
+	float[4] camera_rotation; // can't use gl3n's quat because w is first, when it's last in DRotation
 
 	// object list (for DrawMode.ObjectList)
 	void** obj_list_head;
@@ -115,14 +118,21 @@ struct Rect // possibly DirectX struct?
 	int y2;
 }
 
+enum LTPixelFormat : int
+{
+	RGB_565=0,
+	RGB_555,
+}
+
 struct BlitRequest
 {
-	void* surface_ptr;
+	ImageSurface* surface_ptr;
 	int unknown_1;
 	int unknown_2;
 	void* source_ptr;
 	void* dest_ptr;
-	void*[32] buf;
+
+	Buffer* buf;
 }
 
 // borrowing DLink and DList from Blood 2's dlink.h
@@ -146,19 +156,19 @@ struct DEPalette
 extern(C)
 struct RenderDLL
 {
-	void function(void* /+DObject*+/, void* /+*(DObject + 0x34)+/) AttachmentSomething; // called by ProcessAttachment
+	void function(void* /+DObject*+/, void* /+*(DObject + 0x34, array; has 0x24 stride)+/) AttachmentSomething; // called by ProcessAttachment
 	TextureData* function(SharedTexture*, void* /+out bool?+/) GetTexture;
 	void function(SharedTexture*) FreeTexture;
 	void function() UnknownFunc_1;
 	void function() UnknownFunc_2;
-	void function() UnknownFunc_3;
+	void function(/+ DEPalette*? +/) UnknownFunc_3; // returns DEPalette*?
 	void function() UnknownFunc_4;
 	void function(const char*) RunConsoleString;
 	void function(const char* pMsg, ...) CPrint;
 	void* function(const char*) GetConsoleVar;
 	float function(void*) GetVarValueFloat;
 	const char* function(void*) GetVarValueString;
-	void* function() UnknownFunc_5; // does nothing
+	void* function() UnknownFunc_5; // does nothing in d3d.ren
 	int screen_width;
 	int screen_height;
 	int is_init;
@@ -171,7 +181,7 @@ struct RenderDLL
 	void function(SharedTexture**) SetSoftSky;
 	void function(SharedTexture*, int) BindTexture;
 	void function(SharedTexture*) UnbindTexture;
-	int function(DEPalette*) QueryDeletePalette;
+	int function(DEPalette*) QueryDeletePalette; // unknown
 	int function(SharedTexture*) SetMasterPalette;
 	void* function(RenderContextInit*) CreateContext;
 	void function(RenderContext*) DeleteContext;
@@ -187,20 +197,20 @@ struct RenderDLL
 	void* function(const char*) GetHook; // must handle "LPDIRECTDRAW" (IDirectDraw4*) and "BACKBUFFER" (IDirectDrawSurface4*) to support Smack video
 	void function() SwapBuffers;
 	int function() GetInfoFlags;
-	int function() GetBufferFormat;
-	/+ none of these should be SharedTexture! +/
-	SharedTexture* function(int, int) CreateSurface;
-	void function(SharedTexture*) DeleteSurface;
-	void function(SharedTexture*, int*, int*, int*) GetSurfaceInfo;
-	void* function(SharedTexture*) LockSurface;
-	void function(SharedTexture*) UnlockSurface;
+	LTPixelFormat function() GetBufferFormat;
+	ImageSurface* function(const int, const int) CreateSurface;
+	void function(ImageSurface*) DeleteSurface;
+	void function(ImageSurface*, int*, int*, int*) GetSurfaceInfo;
+	void* function(ImageSurface*) LockSurface;
+	void function(ImageSurface*) UnlockSurface;
+	/+ --- These probably also take ImageSurface* +/
 	int function(void*, uint) OptimizeSurface;
 	void function(void*) UnoptimizeSurface;
 	int function(int, int, int, int, void**, int*) LockScreen;
 	void function() UnlockScreen;
+	/+ --- +/
 	void function(BlitRequest*) BlitToScreen;
 	void function(const char*) MakeScreenShot;
-	/+ --- +/
 	void function() ReadConsoleVariables;
 	void* unknown_3;
 	SharedTexture* envmap_texture;

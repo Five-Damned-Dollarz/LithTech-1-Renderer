@@ -1,11 +1,13 @@
 module VulkanRender;
 
-import std.stdio;
-import core.sys.windows.windows;
+import vk.Device;
 
 import erupted;
 import erupted.platform_extensions;
 mixin Platform_Extensions!USE_PLATFORM_WIN32_KHR;
+
+import std.stdio;
+import core.sys.windows.windows;
 
 import gl3n.linalg;
 import gl3n.math;
@@ -19,9 +21,12 @@ FILE* test_out_c;
 
 VkDebugUtilsMessengerEXT debug_messenger;
 
-extern(Windows) VkBool32 DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data) nothrow @nogc
+extern(Windows)
+VkBool32 DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+                       VkDebugUtilsMessageTypeFlagsEXT type,
+                       const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+                       void* user_data) nothrow @nogc
 {
-	//test_out.writeln(callback_data.pMessage);
 	fprintf(test_out_c, "%s\n", callback_data.pMessage);
 	return VK_FALSE;
 }
@@ -37,7 +42,7 @@ struct Vertex
 {
 	vec3 pos;
 	vec3 colour;
-	vec2 uv_coord;
+	vec3[3] opq; // texture mapping
 
 	static VkVertexInputBindingDescription GetBindingDescription()
 	{
@@ -49,9 +54,9 @@ struct Vertex
 		return binding_description;
 	}
 
-	static VkVertexInputAttributeDescription[3] GetAttributeDescriptions()
+	static VkVertexInputAttributeDescription[] GetAttributeDescriptions()
 	{
-		VkVertexInputAttributeDescription[3] attribute_descriptions=[
+		VkVertexInputAttributeDescription[] attribute_descriptions=[
 			{
 				binding: 0,
 				location: 0,
@@ -67,26 +72,38 @@ struct Vertex
 			{
 				binding: 0,
 				location: 2,
-				format: VK_FORMAT_R32G32_SFLOAT,
-				offset: uv_coord.offsetof
+				format: VK_FORMAT_R32G32B32_SFLOAT,
+				offset: opq.offsetof
+			},
+			{
+				binding: 0,
+				location: 3,
+				format: VK_FORMAT_R32G32B32_SFLOAT,
+				offset: opq.offsetof+vec3.sizeof
+			},
+			{
+				binding: 0,
+				location: 4,
+				format: VK_FORMAT_R32G32B32_SFLOAT,
+				offset: opq.offsetof+(vec3.sizeof*2)
 			}
 		];
 		return attribute_descriptions;
 	}
 }
 
+// Test stuff only!
 const Vertex[] _test_triangle=[
-	{ [-500f, -500f, 0f], [1f, 0f, 0f], [0f, 0f] },
-	{ [500f, -500f, 0f], [0f, 1f, 0f], [1f, 0f] },
-	{ [500f, 500f, 0f], [1f, 0f, 1f], [1f, 1f] },
-	{ [-500f, 500f, 0f], [0f, 0f, 1f], [0f, 1f] },
+	{ [-500f, -500f, 0f], [1f, 0f, 0f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
+	{ [500f, -500f, 0f], [0f, 1f, 0f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
+	{ [500f, 500f, 0f], [1f, 0f, 1f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
+	{ [-500f, 500f, 0f], [0f, 0f, 1f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
 
-	{ [-500f, 500f, -500f], [1f, 1f, 1f], [0f, 1f] },
-	{ [-500f, -500f, -500f], [1f, 1f, 1f], [1f, 1f] },
-	{ [500f, 500f, -500f], [1f, 1f, 1f], [1f, 0f]},
-	{ [500f, -500f, -500f], [1f, 1f, 1f], [0f, 0f] }
+	{ [-500f, 500f, -500f], [1f, 1f, 1f],  [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
+	{ [-500f, -500f, -500f], [1f, 1f, 1f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
+	{ [500f, 500f, -500f], [1f, 1f, 1f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
+	{ [500f, -500f, -500f], [1f, 1f, 1f],  [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] }
 ];
-
 const ushort[] _test_triangle_indices=[0, 1, 2, 3, 4, 5, 6, 7];
 
 struct SwapchainBuffer
@@ -96,15 +113,16 @@ struct SwapchainBuffer
 	VkFramebuffer framebuffer;
 }
 
+__gshared VkInstance g_VkInstance;
+__gshared VkPhysicalDevice g_PhysicalDevice;
+__gshared VkDevice g_Device;
+
 class VulkanRenderer : Renderer
 {
 	enum uint Width=640;
 	enum uint Height=480;
 
 private:
-	VkInstance _instance;
-	VkPhysicalDevice _physical_device;
-	VkDevice _device;
 	VkQueue _graphics_queue;
 	VkQueue _present_queue;
 	VkSurfaceKHR _surface;
@@ -145,57 +163,62 @@ private:
 public:
 	override void Destroy()
 	{
-		vkDestroyBuffer(_device, _vertex_buffer, null);
-		vkFreeMemory(_device, _vertex_buffer_memory, null);
+		vkDestroyBuffer(g_Device, _vertex_buffer, null);
+		vkFreeMemory(g_Device, _vertex_buffer_memory, null);
 
 		// destroy framebuffers lol
 
-		vkDestroyPipeline(_device, _pipeline, null);
+		vkDestroyPipeline(g_Device, _pipeline, null);
 
-		vkDestroyPipelineLayout(_device, _pipeline_layout, null);
-		vkDestroyRenderPass(_device, _render_pass, null);
+		vkDestroyPipelineLayout(g_Device, _pipeline_layout, null);
+		vkDestroyRenderPass(g_Device, _render_pass, null);
 
-		vkDestroyShaderModule(_device, vk_vertex_shader, null);
-		vkDestroyShaderModule(_device, vk_frag_shader, null);
+		vkDestroyShaderModule(g_Device, vk_vertex_shader, null);
+		vkDestroyShaderModule(g_Device, vk_frag_shader, null);
 
 		foreach(ref buffer; _buffers)
-			vkDestroyImageView(_device, buffer.view, null);
+			vkDestroyImageView(g_Device, buffer.view, null);
 
-		vkDestroySwapchainKHR(_device, _swapchain, null);
-		vkDestroyDevice(_device, null);
-		vkDestroySurfaceKHR(_instance, _surface, null);
-		vkDestroyInstance(_instance, null);
+		vkDestroySwapchainKHR(g_Device, _swapchain, null);
+		vkDestroyDevice(g_Device, null);
+		vkDestroySurfaceKHR(g_VkInstance, _surface, null);
+		vkDestroyInstance(g_VkInstance, null);
 		test_out.close();
 	}
 
 	override void InitFrom(void* window)
 	{
+		import std.stdio;
+		test_out.open("vk_test.txt", "w");
+		test_out_c=test_out.getFP();
+
 		{
+			/+
+			 + possible avenue for replacing the window with a 32 bit pixel format: GetWindowLong(window, GWL_WNDPROC) -> create new window
+			 +/
+			test_out.writeln("hDC: ", GetDC(window), ", WndProc: ", GetWindowLong(window, GWL_WNDPROC));
+
 			RECT rect={ 0, 0, Width, Height };
 			DWORD style=GetWindowLong(window, GWL_STYLE);
 			AdjustWindowRectEx(&rect, style, 0, 0);
 			SetWindowPos(window, HWND_NOTOPMOST, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOACTIVATE);
 		}
 
-		import std.stdio;
-		test_out.open("vk_test.txt", "w");
-		test_out_c=test_out.getFP();
-
 		EnumerateVkExtensions();
-		test_out.writeln(CreateVkInstance());
+		CreateVkInstance();
 		CreateVkPhysicalDevice();
-		test_out.writeln(CreateVkSurface(_instance, window, _surface));
-		CreateVkLogicalDevice(_instance, _device);
+		test_out.writeln(CreateVkSurface(g_VkInstance, window, _surface));
+		CreateVkLogicalDevice(g_VkInstance, g_Device);
 
-		vkGetDeviceQueue(_device, GetQueueFamily().graphics_family, 0, &_graphics_queue);
+		vkGetDeviceQueue(g_Device, GetQueueFamily().graphics_family, 0, &_graphics_queue);
 
 		CreateVkSwapchain(_format, _colour_space, _swapchain);
 
 		uint image_count;
-		vkGetSwapchainImagesKHR(_device, _swapchain, &image_count, null);
+		vkGetSwapchainImagesKHR(g_Device, _swapchain, &image_count, null);
 		_images=new VkImage[image_count];
 		_buffers=new SwapchainBuffer[image_count];
-		vkGetSwapchainImagesKHR(_device, _swapchain, &image_count, _images.ptr);
+		vkGetSwapchainImagesKHR(g_Device, _swapchain, &image_count, _images.ptr);
 
 		test_out.writeln("Swapchain Images acquired.");
 
@@ -261,7 +284,7 @@ public:
 				pDependencies: &dependency
 			};
 
-			vkCreateRenderPass(_device, &render_pass_info, null, &_render_pass);
+			vkCreateRenderPass(g_Device, &render_pass_info, null, &_render_pass);
 			test_out.writeln("Render Pass created.");
 		}
 
@@ -272,8 +295,8 @@ public:
 		ubyte[] vertex_shader=Shader.ReadShader("vert.spv");
 		ubyte[] frag_shader=Shader.ReadShader("frag.spv");
 
-		vk_vertex_shader=Shader.CreateShaderModule(_device, vertex_shader);
-		vk_frag_shader=Shader.CreateShaderModule(_device, frag_shader);
+		vk_vertex_shader=Shader.CreateShaderModule(g_Device, vertex_shader);
+		vk_frag_shader=Shader.CreateShaderModule(g_Device, frag_shader);
 
 		VkPipelineShaderStageCreateInfo vert_stage_info={
 			pNext: null,
@@ -304,7 +327,7 @@ public:
 
 		VkPipelineInputAssemblyStateCreateInfo input_assembly_info={
 			pNext: null,
-			topology: VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, // VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			topology: VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, // VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
 			primitiveRestartEnable: VK_FALSE
 		};
 
@@ -335,7 +358,7 @@ public:
 			polygonMode: VK_POLYGON_MODE_FILL,
 			lineWidth: 1f,
 			cullMode: VK_CULL_MODE_BACK_BIT,
-			frontFace: VK_FRONT_FACE_CLOCKWISE,
+			frontFace: VK_FRONT_FACE_CLOCKWISE, // VK_FRONT_FACE_COUNTER_CLOCKWISE
 			depthBiasEnable: VK_FALSE,
 			depthBiasConstantFactor: 0f,
 			depthBiasClamp: 0f,
@@ -386,7 +409,7 @@ public:
 			pPushConstantRanges: null
 		};
 
-		vkCreatePipelineLayout(_device, &pipeline_layout_info, null, &_pipeline_layout);
+		vkCreatePipelineLayout(g_Device, &pipeline_layout_info, null, &_pipeline_layout);
 		test_out.writeln("Pipeline Layout created.");
 
 		/// Pipeline for real!
@@ -417,7 +440,7 @@ public:
 			basePipelineIndex: -1
 		};
 
-		vkCreateGraphicsPipelines(_device, VK_NULL_ND_HANDLE, 1, &graphics_pipe_info, null, &_pipeline);
+		vkCreateGraphicsPipelines(g_Device, VK_NULL_ND_HANDLE, 1, &graphics_pipe_info, null, &_pipeline);
 		test_out.writeln("Graphics Pipeline created.");
 
 		///
@@ -439,7 +462,7 @@ public:
 				layers: 1
 			};
 
-			vkCreateFramebuffer(_device, &fb_create_info, null, &buffer.framebuffer);
+			vkCreateFramebuffer(g_Device, &fb_create_info, null, &buffer.framebuffer);
 			test_out.writeln(buffer.framebuffer);
 		}
 
@@ -450,8 +473,8 @@ public:
 		_texture_image_view=CreateImageView(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 		CreateTextureSampler();
 
-		CreateVertexBuffer(_device, cast(VkDeviceSize)(Vertex.sizeof*_test_triangle.length), cast(void*)_test_triangle.ptr, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, _vertex_buffer, _vertex_buffer_memory);
-		CreateVertexBuffer(_device, cast(VkDeviceSize)(ushort.sizeof*_test_triangle_indices.length), cast(void*)_test_triangle_indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
+		CreateVertexBuffer(g_Device, cast(VkDeviceSize)(Vertex.sizeof*_test_triangle.length), cast(void*)_test_triangle.ptr, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, _vertex_buffer, _vertex_buffer_memory);
+		CreateVertexBuffer(g_Device, cast(VkDeviceSize)(ushort.sizeof*_test_triangle_indices.length), cast(void*)_test_triangle_indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
 
 		CreateUniformBuffers();
 		CreateDescriptorPool();
@@ -459,10 +482,44 @@ public:
 
 		CreateCommandBuffers();
 
+		void SetClearCommandBuffer()
+		{
+			VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ];
+
+			foreach(i; 0.._buffers.length)
+			{
+				auto buffer=_command_buffers[i];
+
+				VkRenderPassBeginInfo render_pass_begin_info={
+					renderPass: _render_pass,
+					framebuffer: _buffers[i].framebuffer,
+					renderArea: {
+						offset: { 0, 0 },
+						extent: _extents
+					},
+					clearValueCount: clear_colour.length,
+					pClearValues: clear_colour.ptr
+				};
+
+				VkCommandBufferBeginInfo command_buffer_begin_info;
+				vkBeginCommandBuffer(buffer, &command_buffer_begin_info);
+				vkCmdBeginRenderPass(buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline);
+				VkBuffer[] vertex_buffers=[ _vertex_buffer ];
+				VkDeviceSize[] offsets=[ 0 ];
+				vkCmdBindVertexBuffers(buffer, 0, vertex_buffers.length, vertex_buffers.ptr, offsets.ptr);
+				vkCmdBindIndexBuffer(buffer, _vertex_index_buffer, 0, VK_INDEX_TYPE_UINT16);
+				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_sets[i], 0, null);
+				vkCmdDrawIndexed(buffer, index_count, 1, 0, 0, 0);
+				vkCmdEndRenderPass(buffer);
+				vkEndCommandBuffer(buffer);
+			}
+		}
+
 		///
 		VkSemaphoreCreateInfo semaphore_info;
-		vkCreateSemaphore(_device, &semaphore_info, null, &_is_image_available);
-		vkCreateSemaphore(_device, &semaphore_info, null, &_is_render_finished);
+		vkCreateSemaphore(g_Device, &semaphore_info, null, &_is_image_available);
+		vkCreateSemaphore(g_Device, &semaphore_info, null, &_is_render_finished);
 
 		test_out.writeln("Vulkan done.");
 	}
@@ -470,11 +527,43 @@ public:
 	float rot=0f;
 	vec3 camera_pos;
 	quat camera_view=quat.identity;
-	override void RenderScene(SceneDesc* scene_desc)
+	override void RenderScene(SceneDesc* scene_desc) // vkCmd*
 	{
-		//quat cam_rot=quat(scene_desc.camera_rotation[3], vec3(scene_desc.camera_rotation[0..3]));
 		camera_pos=vec3(scene_desc.camera_position);
-		camera_view=quat(-scene_desc.camera_rotation[3], vec3(scene_desc.camera_rotation[0..3])).conjugated();
+		camera_view=quat(scene_desc.camera_rotation[3], vec3(scene_desc.camera_rotation[0..3]));
+
+		/*auto cam_x = scene_desc.camera_rotation[0];
+		auto cam_y = scene_desc.camera_rotation[1];
+		auto cam_z = scene_desc.camera_rotation[2];
+		auto cam_w = scene_desc.camera_rotation[3];
+		auto x2_mag = 2.0 / (cam_w * cam_w + cam_x * cam_x + cam_y * cam_y + cam_z * cam_z);
+		auto z_mag = cam_z * x2_mag;
+		auto y_mag = cam_y * x2_mag;
+		auto w_x_mag = cam_w * cam_x * x2_mag;
+		x2_mag = cam_x * cam_x * x2_mag;
+		auto fVar7 = cam_x * y_mag + cam_w * z_mag;
+		auto fVar6 = cam_x * y_mag - cam_w * z_mag;
+		auto fVar1 = 1.0 - (y_mag * cam_y + cam_z * z_mag);
+		auto fVar11 = cam_x * z_mag + cam_w * y_mag;
+		cam_z = 1.0 - (x2_mag + cam_z * z_mag);
+		cam_x = cam_x * z_mag - cam_w * y_mag;
+		auto fVar10 = 1.0 - (x2_mag + y_mag * cam_y);
+		auto fVar12 = cam_y * z_mag - w_x_mag;
+		w_x_mag = cam_y * z_mag + w_x_mag;
+
+		mat3 param_1;
+
+		param_1[0][0] = fVar6;
+		param_1[0][1] = cam_z;
+		param_1[0][2] = w_x_mag;
+
+		param_1[1][0] = fVar1;
+		param_1[1][1] = fVar7;
+		param_1[1][2] = cam_x;
+
+		param_1[2][0] = fVar11;
+		param_1[2][1] = fVar12;
+		param_1[2][2] = fVar10;*/
 
 		rot+=scene_desc.frame_delta;
 
@@ -608,65 +697,72 @@ LAB_0004814b:
 		+/
 	}
 
-	override void SwapBuffers()
+	override void SwapBuffers() // vkQueuePresent
 	{
 		uint image_index;
-		vkAcquireNextImageKHR(_device, _swapchain, uint.max, _is_image_available, VK_NULL_ND_HANDLE, &image_index);
-
-		UpdateUniformBuffer(image_index);
-
-		void SetCommandBuffer(size_t i)
-		{
-			VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ];
-
-			auto buffer=_command_buffers[i];
-
-			VkRenderPassBeginInfo render_pass_begin_info={
-				renderPass: _render_pass,
-				framebuffer: _buffers[i].framebuffer,
-				renderArea: {
-					offset: { 0, 0 },
-					extent: _extents
-				},
-				clearValueCount: clear_colour.length,
-				pClearValues: clear_colour.ptr
-			};
-
-			VkCommandBufferBeginInfo command_buffer_begin_info;
-
-			vkBeginCommandBuffer(buffer, &command_buffer_begin_info);
-			vkCmdBeginRenderPass(buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline);
-
-			VkBuffer[] vertex_buffers=[ _vertex_buffer ];
-			VkDeviceSize[] offsets=[ 0 ];
-
-			vkCmdBindVertexBuffers(buffer, 0, vertex_buffers.length, vertex_buffers.ptr, offsets.ptr);
-			vkCmdBindIndexBuffer(buffer, _vertex_index_buffer, 0, VK_INDEX_TYPE_UINT16);
-			vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_sets[i], 0, null);
-
-			vkCmdDrawIndexed(buffer, index_count, 1, 0, 0, 0);
-
-			vkCmdEndRenderPass(buffer);
-			vkEndCommandBuffer(buffer);
-		}
-
-		SetCommandBuffer(image_index);
+		vkAcquireNextImageKHR(g_Device, _swapchain, uint.max, _is_image_available, VK_NULL_ND_HANDLE, &image_index);
 
 		VkSemaphore[] wait_semaphores=[ _is_image_available ];
 		VkSemaphore[] signal_semaphores=[ _is_render_finished ];
-		VkPipelineStageFlags[] wait_stages = [ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ];
-		VkSubmitInfo submit_info={
-			waitSemaphoreCount: 1,
-			pWaitSemaphores: wait_semaphores.ptr,
-			pWaitDstStageMask: wait_stages.ptr,
-			commandBufferCount: 1,
-			pCommandBuffers: &_command_buffers[image_index],
-			signalSemaphoreCount: 1,
-			pSignalSemaphores: signal_semaphores.ptr
-		};
 
-		vkQueueSubmit(_graphics_queue, 1, &submit_info, VK_NULL_ND_HANDLE);
+		//import Main: _is_in_3D;
+		//if (_is_in_3D)
+		{
+			UpdateUniformBuffer(image_index);
+
+			void SetCommandBuffer(size_t i)
+			{
+				VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ];
+
+				auto buffer=_command_buffers[i];
+
+				VkRenderPassBeginInfo render_pass_begin_info={
+					renderPass: _render_pass,
+					framebuffer: _buffers[i].framebuffer,
+					renderArea: {
+						offset: { 0, 0 },
+						extent: _extents
+					},
+					clearValueCount: clear_colour.length,
+					pClearValues: clear_colour.ptr
+				};
+
+				VkCommandBufferBeginInfo command_buffer_begin_info;
+
+				vkBeginCommandBuffer(buffer, &command_buffer_begin_info);
+				vkCmdBeginRenderPass(buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+				vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline);
+
+				VkBuffer[] vertex_buffers=[ _vertex_buffer ];
+				VkDeviceSize[] offsets=[ 0 ];
+
+				vkCmdBindVertexBuffers(buffer, 0, vertex_buffers.length, vertex_buffers.ptr, offsets.ptr);
+				vkCmdBindIndexBuffer(buffer, _vertex_index_buffer, 0, VK_INDEX_TYPE_UINT16);
+				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_sets[i], 0, null);
+
+				vkCmdDrawIndexed(buffer, index_count, 1, 0, 0, 0);
+
+				vkCmdEndRenderPass(buffer);
+				vkEndCommandBuffer(buffer);
+			}
+
+			SetCommandBuffer(image_index);
+
+			//VkSemaphore[] wait_semaphores=[ _is_image_available ];
+			//VkSemaphore[] signal_semaphores=[ _is_render_finished ];
+			VkPipelineStageFlags[] wait_stages = [ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ];
+			VkSubmitInfo submit_info={
+				waitSemaphoreCount: 1,
+				pWaitSemaphores: wait_semaphores.ptr,
+				pWaitDstStageMask: wait_stages.ptr,
+				commandBufferCount: 1,
+				pCommandBuffers: &_command_buffers[image_index],
+				signalSemaphoreCount: 1,
+				pSignalSemaphores: signal_semaphores.ptr
+			};
+
+			vkQueueSubmit(_graphics_queue, 1, &submit_info, VK_NULL_ND_HANDLE);
+		}
 
 		VkPresentInfoKHR present_info={
 			pNext: null,
@@ -678,6 +774,8 @@ LAB_0004814b:
 		};
 
 		vkQueuePresentKHR(_graphics_queue, &present_info);
+		// recover lost screen if necessary?
+
 		vkQueueWaitIdle(_graphics_queue);
 	}
 
@@ -686,12 +784,12 @@ LAB_0004814b:
 		//
 	}
 
-	override void* LockSurface(void* texture)
+	override void* LockSurface(void* surface)
 	{
 		return null;
 	}
 
-	override void UnlockSurface(SharedTexture* texture)
+	override void UnlockSurface(void* surface)
 	{
 		//
 	}
@@ -703,7 +801,16 @@ LAB_0004814b:
 
 	override int LockScreen(int left, int top, int right, int bottom, void** pixels, int* pitch)
 	{
-		//
+		/+if (!screen_surface.is_locked)
+		{
+			void* start_byte=screen_surface.pixels.ptr;
+			start_byte+=(top*screen_surface.stride)+(left << 1);
+			if (pixels !is null)
+				*pixels=start_byte;
+			if (pitch !is null)
+				*pitch=screen_surface.stride;
+			return 1;
+		}+/
 
 		return 0;
 	}
@@ -715,7 +822,16 @@ LAB_0004814b:
 
 	override void BlitToScreen(BlitRequest* blit_request)
 	{
-		//
+		/+auto real_surface=blit_request.surface_ptr;
+
+		SDL_Surface* conv_surf=SDL_CreateRGBSurfaceFrom(real_surface.pixels.ptr, real_surface.width, real_surface.height, 16, real_surface.stride, 0x1F, 0x7E0, 0xF800, 0x00);
+		//SDL_Surface* conv_surf=SDL_ConvertSurface(surface, screen_surface.format, 0);
+		Rect* source_rect=cast(Rect*)blit_request.source_ptr;
+		Rect* dest_rect=cast(Rect*)blit_request.dest_ptr;
+		SDL_Rect src_rect=SDL_Rect(source_rect.x1, source_rect.y1, source_rect.x2-source_rect.x1, source_rect.y2-source_rect.y1);
+		SDL_Rect dst_rect=SDL_Rect(dest_rect.x1, dest_rect.y1, dest_rect.x2-dest_rect.x1, dest_rect.y2-dest_rect.y1);
+		SDL_BlitScaled(conv_surf, &src_rect, screen_surface, &dst_rect);
+		SDL_FreeSurface(conv_surf);+/
 	}
 
 private:
@@ -762,19 +878,19 @@ private:
 			ppEnabledExtensionNames: extensions.ptr
 		};
 
-		vkCreateInstance(&create_info, null, &_instance);
-		loadInstanceLevelFunctions(_instance);
+		vkCreateInstance(&create_info, null, &g_VkInstance);
+		loadInstanceLevelFunctions(g_VkInstance);
 
-		return vkCreateDebugUtilsMessengerEXT(_instance, &debug_create_info, null, &debug_messenger);
+		return vkCreateDebugUtilsMessengerEXT(g_VkInstance, &debug_create_info, null, &debug_messenger);
 	}
 
 	auto CreateVkPhysicalDevice()
 	{
 		uint device_count;
-		vkEnumeratePhysicalDevices(_instance, &device_count, null);
+		vkEnumeratePhysicalDevices(g_VkInstance, &device_count, null);
 
 		VkPhysicalDevice[] devices=new VkPhysicalDevice[device_count];
-		vkEnumeratePhysicalDevices(_instance, &device_count, devices.ptr);
+		vkEnumeratePhysicalDevices(g_VkInstance, &device_count, devices.ptr);
 
 		foreach(device; devices)
 		{
@@ -786,7 +902,7 @@ private:
 			//test_out.writeln(features);
 		}
 
-		_physical_device=devices[0];
+		g_PhysicalDevice=devices[0];
 	}
 
 	struct QueueFamily
@@ -798,10 +914,10 @@ private:
 	auto GetQueueFamily()
 	{
 		uint queue_count;
-		vkGetPhysicalDeviceQueueFamilyProperties(_physical_device, &queue_count, null);
+		vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &queue_count, null);
 
 		VkQueueFamilyProperties[] queue_props=new VkQueueFamilyProperties[queue_count];
-		vkGetPhysicalDeviceQueueFamilyProperties(_physical_device, &queue_count, queue_props.ptr);
+		vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &queue_count, queue_props.ptr);
 		//test_out.writeln(queue_props);
 
 		QueueFamily queue_family;
@@ -812,7 +928,7 @@ private:
 				queue_family.graphics_family=i;
 
 			VkBool32 present_support=VK_FALSE;
-			vkGetPhysicalDeviceSurfaceSupportKHR(_physical_device, i, _surface, &present_support);
+			vkGetPhysicalDeviceSurfaceSupportKHR(g_PhysicalDevice, i, _surface, &present_support);
 			if (present_support)
 				queue_family.present_family=i;
 		}
@@ -855,11 +971,11 @@ private:
 			pEnabledFeatures: &device_features
 		};
 
-		vkCreateDevice(_physical_device, &create_info, null, &_device);
-		loadDeviceLevelFunctions(_instance);
+		vkCreateDevice(g_PhysicalDevice, &create_info, null, &g_Device);
+		loadDeviceLevelFunctions(g_VkInstance);
 
-		vkGetDeviceQueue(_device, queue_family.graphics_family, 0, &_graphics_queue);
-		vkGetDeviceQueue(_device, queue_family.present_family, 0, &_present_queue);
+		vkGetDeviceQueue(g_Device, queue_family.graphics_family, 0, &_graphics_queue);
+		vkGetDeviceQueue(g_Device, queue_family.present_family, 0, &_present_queue);
 	}
 
 	auto CreateVkSurface(ref VkInstance instance, void* window, out VkSurfaceKHR surface)
@@ -878,25 +994,25 @@ private:
 	auto CreateVkSwapchain(out VkFormat format, out VkColorSpaceKHR colour_space, out VkSwapchainKHR swap_chain)
 	{
 		VkSurfaceCapabilitiesKHR surface_capabilities;
-		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_physical_device, _surface, &surface_capabilities);
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_PhysicalDevice, _surface, &surface_capabilities);
 		VkExtent2D swapchain_rect=surface_capabilities.currentExtent;
 		_extents=swapchain_rect;
 		test_out.writeln(surface_capabilities);
 
 		uint format_count;
-		vkGetPhysicalDeviceSurfaceFormatsKHR(_physical_device, _surface, &format_count, null);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(g_PhysicalDevice, _surface, &format_count, null);
 
 		VkSurfaceFormatKHR[] formats=new VkSurfaceFormatKHR[format_count];
-		vkGetPhysicalDeviceSurfaceFormatsKHR(_physical_device, _surface, &format_count, formats.ptr);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(g_PhysicalDevice, _surface, &format_count, formats.ptr);
 		test_out.writeln(formats);
 
 		format=formats[0].format;
 		colour_space=formats[0].colorSpace;
 
 		uint present_mode_count;
-		vkGetPhysicalDeviceSurfacePresentModesKHR(_physical_device, _surface, &present_mode_count, null);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(g_PhysicalDevice, _surface, &present_mode_count, null);
 		VkPresentModeKHR[] present_modes=new VkPresentModeKHR[present_mode_count];
-		vkGetPhysicalDeviceSurfacePresentModesKHR(_physical_device, _surface, &present_mode_count, present_modes.ptr);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(g_PhysicalDevice, _surface, &present_mode_count, present_modes.ptr);
 		VkPresentModeKHR present_mode=VK_PRESENT_MODE_FIFO_KHR;
 		test_out.writeln(present_modes);
 
@@ -922,7 +1038,7 @@ private:
 			presentMode: present_mode
 		};
 
-		return vkCreateSwapchainKHR(_device, &create_info, null, &swap_chain);
+		return vkCreateSwapchainKHR(g_Device, &create_info, null, &swap_chain);
 	}
 
 	void CreateVkViews()
@@ -946,7 +1062,7 @@ private:
 			};
 			_buffers[i].image=image;
 			//SetImageLayout(_initial_command_buffer, image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-			vkCreateImageView(_device, &create_info, null, &_buffers[i].view);
+			vkCreateImageView(g_Device, &create_info, null, &_buffers[i].view);
 		}
 	}
 
@@ -960,7 +1076,7 @@ private:
 			queueFamilyIndex: queue_family.graphics_family
 		};
 
-		vkCreateCommandPool(_device, &pool_info, null, &_command_pool);
+		vkCreateCommandPool(g_Device, &pool_info, null, &_command_pool);
 		test_out.writeln(_command_pool);
 	}
 
@@ -974,7 +1090,7 @@ private:
 			level: VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 			commandBufferCount: _command_buffers.length
 		};
-		vkAllocateCommandBuffers(_device, &alloc_info, _command_buffers.ptr);
+		vkAllocateCommandBuffers(g_Device, &alloc_info, _command_buffers.ptr);
 
 		test_out.writeln(_command_buffers);
 	}
@@ -982,7 +1098,7 @@ private:
 	uint FindMemoryType(uint filter, VkMemoryPropertyFlags properties)
 	{
 		VkPhysicalDeviceMemoryProperties memory_properties;
-		vkGetPhysicalDeviceMemoryProperties(_physical_device, &memory_properties);
+		vkGetPhysicalDeviceMemoryProperties(g_PhysicalDevice, &memory_properties);
 		foreach(prop; 0..memory_properties.memoryTypeCount)
 		{
 			if ((filter & (1 << prop)) && (memory_properties.memoryTypes[prop].propertyFlags & properties))
@@ -999,18 +1115,18 @@ private:
 			sharingMode: VK_SHARING_MODE_EXCLUSIVE
 		};
 
-		vkCreateBuffer(_device, &buffer_info, null, &buffer);
+		vkCreateBuffer(g_Device, &buffer_info, null, &buffer);
 
 		VkMemoryRequirements memory_reqs;
-		vkGetBufferMemoryRequirements(_device, buffer, &memory_reqs);
+		vkGetBufferMemoryRequirements(g_Device, buffer, &memory_reqs);
 
 		VkMemoryAllocateInfo alloc_info={
 			allocationSize: memory_reqs.size,
 			memoryTypeIndex: FindMemoryType(memory_reqs.memoryTypeBits, properties)
 		};
 
-		vkAllocateMemory(_device, &alloc_info, null, &memory);
-		vkBindBufferMemory(_device, buffer, memory, 0);
+		vkAllocateMemory(g_Device, &alloc_info, null, &memory);
+		vkBindBufferMemory(g_Device, buffer, memory, 0);
 	}
 
 	void CopyVkBuffer(VkBuffer source, VkBuffer dest, VkDeviceSize size)
@@ -1068,20 +1184,20 @@ private:
 	void UpdateUniformBuffer(uint image_index)
 	{
 		UniformBufferObject ubo;
-		ubo.model=mat4.identity.rotatez(0f).translate(0f, 0f, 0f).transposed();
+		ubo.model=mat4.identity.translate(0f, 0f, 0f).transposed();
 		// pitch = mouse x; roll = mouse y
 		// x = v; y = h; z = roll
-		ubo.view=mat4.identity.translate(-camera_pos.x, -camera_pos.y, -camera_pos.z).rotatez(camera_view.yaw()).rotatey(camera_view.pitch()).rotatex(camera_view.roll()).transposed(); //mat4.look_at(vec3(2f, 2f, 2f), vec3(0f, 0f, 0f), vec3(0f, 0f, 1f)).transposed();
+		ubo.view=ubo.view.identity.translate(-camera_pos.x, -camera_pos.y, -camera_pos.z).rotatez(camera_view.roll()).rotatex(camera_view.yaw()).rotatey(camera_view.pitch()).transposed(); //mat4.look_at(vec3(2f, 2f, 2f), vec3(0f, 0f, 0f), vec3(0f, 0f, 1f)).transposed();
 
 		ubo.proj=mat4.perspective(_extents.width, _extents.height, 45f, 0.1f, 15000f).transposed();
 
 		void* data;
-		vkMapMemory(_device, _uniform_buffers_memory[image_index], 0, ubo.sizeof, 0, &data);
+		vkMapMemory(g_Device, _uniform_buffers_memory[image_index], 0, ubo.sizeof, 0, &data);
 
 		import core.stdc.string: memcpy;
 		memcpy(data, &ubo, ubo.sizeof);
 
-		vkUnmapMemory(_device, _uniform_buffers_memory[image_index]);
+		vkUnmapMemory(g_Device, _uniform_buffers_memory[image_index]);
 	}
 
 	VkDescriptorSetLayout _descriptor_set_layout;
@@ -1113,7 +1229,7 @@ private:
 			pBindings: bindings.ptr
 		};
 
-		vkCreateDescriptorSetLayout(_device, &create_info, null, &_descriptor_set_layout);
+		vkCreateDescriptorSetLayout(g_Device, &create_info, null, &_descriptor_set_layout);
 	}
 
 	void CreateDescriptorPool()
@@ -1134,7 +1250,7 @@ private:
 			maxSets: _buffers.length
 		};
 
-		vkCreateDescriptorPool(_device, &pool_info, null, &_descriptor_pool);
+		vkCreateDescriptorPool(g_Device, &pool_info, null, &_descriptor_pool);
 	}
 
 	public void CreateDescriptorSets()
@@ -1151,7 +1267,7 @@ private:
 		};
 
 		_descriptor_sets=new VkDescriptorSet[_buffers.length];
-		test_out.writeln(vkAllocateDescriptorSets(_device, &alloc_info, _descriptor_sets.ptr));
+		test_out.writeln(vkAllocateDescriptorSets(g_Device, &alloc_info, _descriptor_sets.ptr));
 
 		test_out.writeln(_descriptor_sets);
 
@@ -1187,7 +1303,7 @@ private:
 				pImageInfo: &image_info
 			} ];
 
-			vkUpdateDescriptorSets(_device, descriptor_write.length, descriptor_write.ptr, 0, null);
+			vkUpdateDescriptorSets(g_Device, descriptor_write.length, descriptor_write.ptr, 0, null);
 		}
 	}
 
@@ -1196,8 +1312,8 @@ private:
 
 	public void CreateTextureImage()//SharedTexture* texture)
 	{
-		vkDestroyImage(_device, _texture_image, null);
-		vkFreeMemory(_device, _texture_image_memory, null);
+		//vkDestroyImage(g_Device, _texture_image, null);
+		//vkFreeMemory(g_Device, _texture_image_memory, null);
 
 		//if (TextureData* tex_data=texture.engine_data)
 		{
@@ -1207,12 +1323,11 @@ private:
 			int width=16, height=16, channels=4;
 
 			// get pixels
-			File source=File("TS_ZCalebEdit.png");
+			File source=File("test_texture.png");
 			Image texture=PNG.load(source);
 			width=texture.width;
 			height=texture.height;
 			ubyte[] pixels=texture.imageData.raw; //=TransitionTexturePixels(texture);
-			test_out.writeln(pixels[0..128]);
 
 			size_t image_size=width*height*channels;
 
@@ -1222,10 +1337,10 @@ private:
 			CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
 
 			void* data;
-			vkMapMemory(_device, staging_memory, 0, image_size, 0, &data);
+			vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &data);
 			import core.stdc.string: memcpy;
 			memcpy(data, pixels.ptr, cast(size_t)image_size);
-			vkUnmapMemory(_device, staging_memory);
+			vkUnmapMemory(g_Device, staging_memory);
 
 			// free pixels
 			pixels=null;
@@ -1235,8 +1350,8 @@ private:
 			CopyBufferToImage(staging_buffer, _texture_image, width, height);
 			TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-			vkDestroyBuffer(_device, staging_buffer, null);
-			vkFreeMemory(_device, staging_memory, null);
+			vkDestroyBuffer(g_Device, staging_buffer, null);
+			vkFreeMemory(g_Device, staging_memory, null);
 		}
 	}
 
@@ -1258,10 +1373,10 @@ private:
 			CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
 
 			void* data;
-			vkMapMemory(_device, staging_memory, 0, image_size, 0, &data);
+			vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &data);
 			import core.stdc.string: memcpy;
 			memcpy(data, pixels.ptr, cast(size_t)image_size);
-			vkUnmapMemory(_device, staging_memory);
+			vkUnmapMemory(g_Device, staging_memory);
 
 			// free pixels
 			pixels=null;
@@ -1271,8 +1386,8 @@ private:
 			CopyBufferToImage(staging_buffer, texture_img, width, height);
 			TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-			vkDestroyBuffer(_device, staging_buffer, null);
-			vkFreeMemory(_device, staging_memory, null);
+			vkDestroyBuffer(g_Device, staging_buffer, null);
+			vkFreeMemory(g_Device, staging_memory, null);
 		}
 	}
 
@@ -1295,17 +1410,17 @@ private:
 			sharingMode: VK_SHARING_MODE_EXCLUSIVE
 		};
 
-		vkCreateImage(_device, &image_info, null, &image);
+		vkCreateImage(g_Device, &image_info, null, &image);
 
 		VkMemoryRequirements memory_reqs;
-		vkGetImageMemoryRequirements(_device, image, &memory_reqs);
+		vkGetImageMemoryRequirements(g_Device, image, &memory_reqs);
 
 		VkMemoryAllocateInfo alloc_info={
 			allocationSize: memory_reqs.size,
 			memoryTypeIndex: FindMemoryType(memory_reqs.memoryTypeBits, properties)
 		};
-		vkAllocateMemory(_device, &alloc_info, null, &memory);
-		vkBindImageMemory(_device, image, memory, 0);
+		vkAllocateMemory(g_Device, &alloc_info, null, &memory);
+		vkBindImageMemory(g_Device, image, memory, 0);
 	}
 
 	VkCommandBuffer BeginSingleTimeCommands()
@@ -1316,7 +1431,7 @@ private:
 			commandBufferCount: 1
 		};
 		VkCommandBuffer command_buffer;
-		vkAllocateCommandBuffers(_device, &alloc_info, &command_buffer);
+		vkAllocateCommandBuffers(g_Device, &alloc_info, &command_buffer);
 
 		VkCommandBufferBeginInfo begin_info={
 			flags: VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
@@ -1336,7 +1451,7 @@ private:
 		};
 		vkQueueSubmit(_graphics_queue, 1, &submit_info, VK_NULL_ND_HANDLE);
 		vkQueueWaitIdle(_graphics_queue);
-		vkFreeCommandBuffers(_device, _command_pool, 1, &command_buffer);
+		vkFreeCommandBuffers(g_Device, _command_pool, 1, &command_buffer);
 	}
 
 	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout layout_out, VkImageLayout layout_new)
@@ -1426,7 +1541,7 @@ private:
 		};
 
 		VkImageView image_view;
-		vkCreateImageView(_device, &view_info, null, &image_view);
+		vkCreateImageView(g_Device, &view_info, null, &image_view);
 
 		return image_view;
 	}
@@ -1435,7 +1550,7 @@ private:
 	public void CreateTextureSampler()
 	{
 		VkPhysicalDeviceProperties properties;
-		vkGetPhysicalDeviceProperties(_physical_device, &properties);
+		vkGetPhysicalDeviceProperties(g_PhysicalDevice, &properties);
 
 		VkSamplerCreateInfo create_info={
 			magFilter: VK_FILTER_LINEAR,
@@ -1454,7 +1569,7 @@ private:
 			minLod: 0f,
 			maxLod: 0f
 		};
-		vkCreateSampler(_device, &create_info, null, &_texture_sampler);
+		vkCreateSampler(g_Device, &create_info, null, &_texture_sampler);
 	}
 
 	VkFormat FindSupportedFormat(const VkFormat[] candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
@@ -1462,7 +1577,7 @@ private:
 		foreach(format; candidates)
 		{
 			VkFormatProperties properties;
-			vkGetPhysicalDeviceFormatProperties(_physical_device, format, &properties);
+			vkGetPhysicalDeviceFormatProperties(g_PhysicalDevice, format, &properties);
 
 			if (tiling==VK_IMAGE_TILING_LINEAR && (properties.linearTilingFeatures & features)==features)
 				return format;
@@ -1492,7 +1607,6 @@ private:
 
 	import WorldBSP;
 
-	VkDeviceSize[] vert_buf_offsets;
 	uint index_count=0;
 	public void CreateBSPVertexBuffer(WorldBSP* bsp)
 	{
@@ -1502,38 +1616,35 @@ private:
 		Polygon*[] polygons=bsp.polygons[0..bsp.polygon_count];
 
 		Vertex[] vert_buffer=new Vertex[0];
-
-		vert_buf_offsets=new VkDeviceSize[0];
-
 		ushort[] indices=new ushort[0];
 
 		uint vert_count=0;
 
 		foreach(i, polygon; polygons)
 		{
-			//test_out.writeln("-- new poly");
-			//test_out.writeln(*polygon);
-
-			vert_buf_offsets~=vert_buffer.length*Vertex.sizeof;
 			vert_count=vert_buffer.length;
 
 			foreach(j, vertex; polygon.DiskVerts())
 			{
-				vert_buf_offsets~=vert_buffer.length*Vertex.sizeof;
-
 				Vertex new_vert;
 				with(new_vert)
 				{
 					pos=(*vertex.vertex_data).xyz;
-					colour.r=vertex.unknown_2[0]/255f;
-					colour.g=vertex.unknown_2[1]/255f;
-					colour.b=vertex.unknown_2[2]/255f;
+					colour.r=vertex.colour[0]/255f;
+					colour.g=vertex.colour[1]/255f;
+					colour.b=vertex.colour[2]/255f;
+					opq=polygon.surface.opq_map[0..3];
 				}
 
 				vert_buffer~=new_vert;
-				indices~=cast(ushort)(vert_count);
-				indices~=cast(ushort)(vert_buffer.length-2);
-				indices~=cast(ushort)(vert_buffer.length-1);
+
+				if (j>2)
+				{
+					indices~=cast(ushort)(vert_count);
+					indices~=cast(ushort)(vert_count+j-1);
+				}
+
+				indices~=cast(ushort)(vert_count+j);
 			}
 		}
 
@@ -1556,12 +1667,10 @@ private:
 		index_count=indices.length;
 		test_out.writeln(index_count);
 
-		//
-		CreateVertexBuffer(_device, cast(VkDeviceSize)(Vertex.sizeof*vert_buffer.length), vert_buffer.ptr, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, _vertex_buffer, _vertex_buffer_memory);
-		CreateVertexBuffer(_device, cast(VkDeviceSize)(ushort.sizeof*indices.length), indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
+		CreateVertexBuffer(g_Device, cast(VkDeviceSize)(Vertex.sizeof*vert_buffer.length), vert_buffer.ptr, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, _vertex_buffer, _vertex_buffer_memory);
+		CreateVertexBuffer(g_Device, cast(VkDeviceSize)(ushort.sizeof*indices.length), indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
 
 		test_out.writeln("-- End create BSP, ", vert_buffer.length);
-		test_out.writeln(indices);
 	}
 }
 

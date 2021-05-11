@@ -10,5 +10,5 @@ layout(location=0) out vec4 colour_out;
 
 void main()
 {
-	colour_out=vec4(colour_in, 1.0); //texture(tex_sampler, uv_coord_in);
+	colour_out=vec4(colour_in*texture(tex_sampler, uv_coord_in).rgb, 1.0); //texture(tex_sampler, uv_coord_in);
 }

@@ -89,7 +89,7 @@ struct SharedTexture
 	//static assert(this.sizeof>=40); // 64/68?
 }
 
-ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int height, out int channels)
+ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int height, out int channels /+ bytes per pixel? +/)
 {
 	width=texture.header.width;
 	height=texture.header.height;
@@ -120,16 +120,100 @@ import erupted;
 
 class RenderTexture
 {
-	public VkImage image;
-	public VkDeviceMemory memory;
-	VkImageView[VkFormat] image_view;
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView image_view;
 
 	SharedTexture* texture_ref;
+
+	public size_t Create(SharedTexture* texture, TextureData* data)
+		in(data !is null)
+	{
+		texture_ref=texture;
+
+		int width, height, channels;
+
+		// get pixels
+		width=data.header.width;
+		height=data.header.height;
+		ubyte[] pixels=TransitionTexturePixels(data, width, height, channels);
+
+		/+// SANITY CHECK: dump texture as bitmap
+		import Bitmap;
+		Bitmap bitmap_out;
+		bitmap_out.pixel_data=pixels;
+		bitmap_out.file_header.file_size=bitmap_out.file_header.pixel_data_offset+bitmap_out.pixel_data.length;
+		bitmap_out.info_header.image_width=width;
+		bitmap_out.info_header.image_height=-height;
+
+		import std.stdio, std.string;
+		File bmp_out;
+		bmp_out.open("tex_dump/texture_%x.bmp".format(texture_ref), "wb");
+		bmp_out.rawWrite((&bitmap_out.file_header)[0..1]);
+		bmp_out.rawWrite((&bitmap_out.info_header)[0..1]);
+		bmp_out.rawWrite(bitmap_out.pixel_data[]);
+		bmp_out.close();+/
+
+		return pixels.length;
+
+		/*assert(width>0);
+		assert(height>0);
+		assert(channels>0);
+		assert(pixels.length==width*height*channels);*/
+
+		/+size_t image_size=width*height*channels;
+
+		VkBuffer staging_buffer;
+		VkDeviceMemory staging_memory;
+
+		CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
+
+		void* data;
+		vkMapMemory(_device, staging_memory, 0, image_size, 0, &data);
+		import core.stdc.string: memcpy;
+		memcpy(data, pixels.ptr, cast(size_t)image_size);
+		vkUnmapMemory(_device, staging_memory);
+
+		// free pixels
+		pixels=null;
+
+		CreateVkImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image, memory);
+		TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		CopyBufferToImage(staging_buffer, _texture_image, width, height);
+		TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		vkDestroyBuffer(_device, staging_buffer, null);
+		vkFreeMemory(_device, staging_memory, null);+/
+
+		assert(0);
+	}
 }
+
+import Main: test_out;
 
 class TextureManager
 {
-	public RenderTexture[] textures;
+	RenderTexture[] textures;
+
+	RenderTexture CreateTexture(SharedTexture* texture, TextureData* data)
+	{
+		RenderTexture r_texture=new RenderTexture();
+		//test_out.writeln();
+		r_texture.Create(texture, data);
+
+		g_TextureManager.textures~=r_texture;
+
+		return r_texture;
+
+		//(cast(VulkanRenderer)_renderer_inst).CreateTextureImage(texture, r_texture.image, r_texture.memory);
+
+		//test_out.writeln(r_texture.image, " ", r_texture.memory);
+
+		/*renderer.CreateTextureImage(texture);
+		renderer.CreateTextureImageView();
+		renderer.CreateTextureSampler();
+		renderer.CreateDescriptorSets();*/
+	}
 }
 
 __gshared TextureManager g_TextureManager=new TextureManager();
