@@ -8,14 +8,19 @@ enum DTXMipMapCount=4;
 struct Colour
 {
 	ubyte a, r, g, b;
+
+	static Colour From565(ushort colour_in)
+	{
+		return Colour(0xFF, (colour_in & 0xF800) >> 8, (colour_in & 0x07E0) >> 3, (colour_in & 0x001F) << 3);
+	}
 }
 
 enum DTXFlags : uint
 {
-	FullBrite=1,
-	AlphaMasks=2,
-	Unknown1=4,
-	Unknown2=8
+	FullBrite=0x1,
+	AlphaMasks=0x2,
+	Unknown1=0x4,
+	Unknown2=0x8
 }
 
 struct DTXHeader
@@ -72,7 +77,7 @@ struct SharedTexture
 {
 	Buffer* ref1; // unknown
 	TextureData* engine_data;
-	RenderTexture* ref2; // render_data; if null load new texture?
+	RenderTexture* render_data; // render_data; if null load new texture from engine_data?
 	DLink link;
 
 	// possibly functions here?
@@ -89,11 +94,14 @@ struct SharedTexture
 	//static assert(this.sizeof>=40); // 64/68?
 }
 
+/+
+ + converts 8-bit indexed ARGB4888 to RGBA8888
+ +/
 ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int height, out int channels /+ bytes per pixel? +/)
 {
 	width=texture.header.width;
 	height=texture.header.height;
-	channels=4; // in this project we know DTX is always indexed A8R8G8B8
+	channels=4;
 
 	size_t image_size=width*height*channels;
 	// get pixels
@@ -126,10 +134,30 @@ class RenderTexture
 
 	SharedTexture* texture_ref;
 
+	private void DumpAsBMP(TextureData* data, ubyte[] pixels)
+	{
+		// SANITY CHECK: dump texture as bitmap
+		import Bitmap;
+		Bitmap bitmap_out;
+		bitmap_out.pixel_data=pixels;
+		bitmap_out.file_header.file_size=bitmap_out.file_header.pixel_data_offset+bitmap_out.pixel_data.length;
+		bitmap_out.info_header.image_width=data.header.width;
+		bitmap_out.info_header.image_height=-cast(int)(data.header.height);
+
+		import std.stdio, std.string;
+		File bmp_out;
+		bmp_out.open("tex_dump/texture_%x.bmp".format(data), "wb");
+		bmp_out.rawWrite((&bitmap_out.file_header)[0..1]);
+		bmp_out.rawWrite((&bitmap_out.info_header)[0..1]);
+		bmp_out.rawWrite(bitmap_out.pixel_data[]);
+		bmp_out.close();
+	}
+
 	public size_t Create(SharedTexture* texture, TextureData* data)
 		in(data !is null)
 	{
 		texture_ref=texture;
+		texture.render_data=cast(RenderTexture*)(this);
 
 		int width, height, channels;
 
@@ -137,22 +165,6 @@ class RenderTexture
 		width=data.header.width;
 		height=data.header.height;
 		ubyte[] pixels=TransitionTexturePixels(data, width, height, channels);
-
-		/+// SANITY CHECK: dump texture as bitmap
-		import Bitmap;
-		Bitmap bitmap_out;
-		bitmap_out.pixel_data=pixels;
-		bitmap_out.file_header.file_size=bitmap_out.file_header.pixel_data_offset+bitmap_out.pixel_data.length;
-		bitmap_out.info_header.image_width=width;
-		bitmap_out.info_header.image_height=-height;
-
-		import std.stdio, std.string;
-		File bmp_out;
-		bmp_out.open("tex_dump/texture_%x.bmp".format(texture_ref), "wb");
-		bmp_out.rawWrite((&bitmap_out.file_header)[0..1]);
-		bmp_out.rawWrite((&bitmap_out.info_header)[0..1]);
-		bmp_out.rawWrite(bitmap_out.pixel_data[]);
-		bmp_out.close();+/
 
 		return pixels.length;
 
@@ -183,7 +195,9 @@ class RenderTexture
 		TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		vkDestroyBuffer(_device, staging_buffer, null);
-		vkFreeMemory(_device, staging_memory, null);+/
+		vkFreeMemory(_device, staging_memory, null);
+
+		image_view=CreateImageView(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);+/
 
 		assert(0);
 	}
@@ -193,13 +207,14 @@ import Main: test_out;
 
 class TextureManager
 {
-	RenderTexture[] textures;
+	public RenderTexture[] textures;
 
 	RenderTexture CreateTexture(SharedTexture* texture, TextureData* data)
 	{
 		RenderTexture r_texture=new RenderTexture();
 		//test_out.writeln();
 		r_texture.Create(texture, data);
+		texture.render_data=&r_texture;
 
 		g_TextureManager.textures~=r_texture;
 

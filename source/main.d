@@ -235,15 +235,28 @@ void SetSoftSky(SharedTexture** textures)
 {
 	test();
 
-	test_out.writeln(*textures);
-	if (*textures !is null) // obviously this isn't a surface we've created
-		test_out.writeln(*cast(SDL_Surface*)*textures);
-	test_out.flush();
+
+	/+//if (*textures !is null)
+	//	test_out.writeln((*textures)[0..30]);
 
 	test_out.writeln(*_renderer);
 	test_out.writeln("Renderer unknown array:");
 	test_out.writeln(_renderer.unknown_8[0..30]);
-	test_out.flush();
+
+	foreach(ref list; _renderer.unknown_8[0..30])
+	{
+		auto buf=list.prev;
+		auto cur=&list;
+		while(buf!=cur)
+		{
+			test_out.writeln(*(cast(DEPalette*)buf.data));
+			buf=buf.prev;
+		}
+
+		test_out.writeln("---");
+	}
+
+	test_out.flush();+/
 }
 
 void BindTexture(SharedTexture* texture, int unknown)
@@ -252,9 +265,9 @@ void BindTexture(SharedTexture* texture, int unknown)
 	test();
 	test_out.writeln(*texture);
 
-	if (texture.ref2)
+	if (texture.render_data)
 	{
-		RenderTexture* render_texture=texture.ref2;
+		RenderTexture* render_texture=texture.render_data;
 		TextureData* texture_data=_renderer.GetTexture(texture, null);
 
 		if (texture_data !is null)
@@ -274,6 +287,8 @@ void BindTexture(SharedTexture* texture, int unknown)
 		if (auto renderer=cast(VulkanRenderer)_renderer_inst)
 		{
 			RenderTexture r_texture=g_TextureManager.CreateTexture(texture, texture_data);
+
+			//test_out.writeln(g_TextureManager.textures);
 
 			/+import erupted;
 			import VulkanRender;
@@ -320,49 +335,74 @@ void* CreateContext(RenderContextInit* context_init)
 	RenderContext* temp=cast(RenderContext*)calloc(1, RenderContext.sizeof);
 	temp.main_world=context_init.main_world;
 
+	test_out.writeln(*(cast(Buffer*)temp.main_world.memory_used));
+
 	import WorldBSP;
 	test_out.writeln(*temp.main_world);
 
 	WorldBSP* bsp=temp.main_world.world_bsp;
 	test_out.writeln(*bsp);
 
-	foreach(i, ref unknown; bsp.unknown_1[0..bsp.unknown_1_count])
+	/+foreach(poly; bsp.polygons[0..bsp.polygon_count])
 	{
-		test_out.writeln("--- List:");
-		test_out.writeln(i, ": ", &unknown, " ", unknown);
-
-		auto current=unknown.prev;
-		while(current!=&unknown)
+		test_out.writeln(*poly);
+		if (poly.lightmap_data !is null)
 		{
-			//test_out.writeln(current, " ", current.data[0..4]);
-
-			test_out.writeln(current.data, " ", *current.data);
-			test_out.flush();
-			//test_out.writeln(current.data.bsp, " ", *current.data.bsp);
-			/*test_out.writeln(" --- BSP (", cast(void*)(current.data.bsp)+32, "):\n", *current.data.bsp);
-			test_out.writeln(current.data.bsp.memory_used, ": ", *(cast(WorldBSP*)current.data.bsp.memory_used));
-			test_out.writeln(current.data.bsp.next_section, ": ", *(cast(WorldBSP*)current.data.bsp.next_section));*/
-			/+test_out.writeln("--- Attachments:");
-
-			auto attach_start=current.data.unknown_2;
-			while(attach_start!=current.data.unknown_2)
+			import Model: SurfaceFlags;
+			if (poly.surface.flags & SurfaceFlags.LightMap)
 			{
-				test_out.writeln(attach_start, " ", attach_start[0..4]);
-				attach_start=attach_start.buf[0];
-				//test_out.writeln(attach_start, " ", attach_start[0..4]);
+				ubyte[] dims=(cast(ubyte*)poly.lightmap_data)[0..2];
+				uint length=dims[0]*dims[1];
+
+				test_out.writeln(dims, ": ", (cast(ushort*)poly.lightmap_data)[0..length]);
 			}
-
-			//DumpRaw(current.data, 512);
-			//test_out.writeln();
-
-			/*auto sub_cur=current.data[0].link_unknown.prev;
-			while(sub_cur!=&current.data[0].link_unknown)
-			{
-				test_out.writeln(*cast(Buffer*)sub_cur.data);
-			}*/ +/
-
-			current=current.prev;
 		}
+	}+/
+
+	void TraverseNode(Node* node) // move this somewhere else!
+	{
+		test_out.writeln(*node);
+
+		// do objects
+		if (node.objects)
+		{
+			auto current=node.objects.prev;
+			while(current!=(node.objects))
+			{
+				test_out.writeln(*current);
+				test_out.writeln(*current.data);
+
+				auto attach_current=current.data.attachments;
+				while(attach_current!=null)
+				{
+					struct AttachmentList
+					{
+						Buffer*[10] buf;
+
+						static assert(this.sizeof==40);
+					}
+					test_out.writeln((cast(AttachmentList*)attach_current)[0..2]);
+					test_out.writeln(_renderer.AttachmentSomething(current.data, attach_current));
+					attach_current=attach_current.buf[9];
+					test_out.writeln(attach_current);
+					test_out.flush();
+				}
+				current=current.prev;
+			}
+		}
+
+		if (node.next[0].flags & 8)
+		{
+			TraverseNode(node.next[0]);
+		}
+
+		if (node.next[1].flags & 8)
+		{
+			TraverseNode(node.next[1]);
+		}
+	}
+
+	//TraverseNode(bsp.node_root);
 
 		/+
 			pDVar1 = param_1->prev?;
@@ -374,16 +414,6 @@ void* CreateContext(RenderContextInit* context_init)
 				pDVar1 = pDVar1->prev?;
 			}
 		+/
-
-		/*if (unknown.data)
-		{
-			test_out.writeln(i, ": ", unknown);
-			test_out.writeln((cast(Buffer*)unknown.data)[0..3]);
-		}*/
-		//test_out.writeln(unknown.node, ": ", *unknown.node);
-		//test_out.writeln(unknown.buf[0], ": ", *unknown.buf[0]);
-		//test_out.writeln(unknown.buf[1], ": ", *unknown.buf[1]);
-	}
 
 	(cast(VulkanRenderer)_renderer_inst).CreateBSPVertexBuffer(temp.main_world.world_bsp);
 

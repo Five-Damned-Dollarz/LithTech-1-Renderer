@@ -62,9 +62,14 @@ struct Plane
 	float distance;
 }
 
+enum NodeFlags
+{
+	Unknown=0x8, // very important, possibly visible?
+}
+
 struct Node
 {
-	uint flags; // unknown, (flags & 8) seems important
+	NodeFlags flags; // unknown, (flags & 8) seems important
 	Polygon* polygons;
 	Plane* planes;
 	int unknown_1;
@@ -72,7 +77,7 @@ struct Node
 	WorldBSP* bsp;
 	vec3 center;
 	float radius;
-	Object* objects; // unsure
+	UnknownList* objects; // unsure
 	Node*[2] next;
 
 	static assert(this.sizeof==52);
@@ -105,7 +110,7 @@ struct Leaf
 	Buffer* unknown_2; // start? -- in place DLink?
 	Buffer* unknown_3; // end?
 	Buffer* unknown_4; // next, if start != end?
-	Buffer* unknown_5; // entry to Buffer** unknown_3?
+	Buffer* unknown_5; // polygons list?
 	int unknown_6; // set to 0 at the start of each frame draw
 	Buffer* unknown_7;
 	int unknown_8;
@@ -124,10 +129,14 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 	vec3 polygon_list; // from PolygonList in the dat
 	void*[2] unknown_2;
 
+	pragma(msg, unknown_2.offsetof);
+
+	ubyte* lightmap_data;
+
 	ushort unknown; // set to 0 on frame start?
 	ushort frame_code;
 
-	Buffer*[2] unknown_3;
+	int is_lightmapped; // unknown
 
 	ushort vertex_count;
 	ushort vertex_extra;
@@ -140,17 +149,19 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 	}
 	DiskVert vertices; // this is intended to be drawn as a triangle fan: [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], etc.
 
-	@property DiskVert[] DiskVerts() return // these seem unsplit
+	/// only draw one of the following sets or you get z-fighting where DiskExtras has extra cuts in the faces
+	@property DiskVert[] DiskVerts() return
 	{
 		return (&vertices)[0..(vertex_count)];
 	}
 
-	@property DiskVert[] DiskExtras() return // these are broken up into smaller triangles, possibly related to FixTJunc CVar?
+	@property DiskVert[] DiskExtras() return // these are broken up into smaller triangles, possibly related to FixTJunc?
 	{
 		return (&vertices)[(vertex_count)..(vertex_count+vertex_extra)];
 	}
 
-	static assert(this.sizeof>=72); // smallest runtime case possible should be 188?
+	static assert(lightmap_data.offsetof==52);
+	static assert(this.sizeof>=72); // smallest runtime case possible should be 188 or 212?
 }
 
 struct MainWorld
@@ -185,7 +196,7 @@ struct MainWorld
 	static assert(this.sizeof>=168);
 }
 
-struct UnknownList
+struct UnknownList // WorldModelList?
 {
 	UnknownList* prev;
 	UnknownList* next;
@@ -206,13 +217,13 @@ struct UnknownObject // WorldModel
 	Buffer* unknown_1;
 
 	Buffer* unknown_2; // attachment?
-	UnknownObject* root; // ?
+	UnknownObject* root; // UnknownList? static assert(root.offsetof==36)
 
 	ModelFlags flags;
 
 	void* unknown_3a;
 	void* unknown_3b;
-	Buffer* attachments; // pragma(msg, attachments.offsetof==52);
+	Buffer* attachments;
 
 	vec3 world_translation;
 	float[4] rotation;
@@ -239,6 +250,7 @@ align(2):
 	//pragma(msg, this.sizeof);
 	static assert(this.sizeof>=108);
 	static assert(flags.offsetof==40);
+	static assert(attachments.offsetof==52);
 	static assert(type_id.offsetof==110);
 	// possibly 300 byte stride for one of the object types?
 	// 428-432 stride?
@@ -264,8 +276,8 @@ struct WorldBSP
 	Node* nodes;
 	uint node_count;
 
-	UnknownList* unknown_1; // world object related? must have 24 byte stride
-	uint unknown_1_count;
+	UnknownList* world_models; // must have 24 byte stride
+	uint world_models_count;
 
 	Surface* surfaces;
 	uint surface_count;
@@ -281,8 +293,8 @@ struct WorldBSP
 
 	uint unknown_4; // possible address? possible flag for something?
 
-	Node* nodes_duplicate; // nodes duplicate? Possible root_node?
-	Buffer* unknown_1_duplicate; // why? Possible root_unknown_1?
+	Node* node_root;
+	UnknownList* world_model_root;
 
 	Polygon** polygons; // polygons?
 	uint polygon_count;
@@ -302,6 +314,7 @@ struct WorldBSP
 	int[26] unknown_10;
 	void*[2] unknown_11;
 
+	// possibly skybox related?
 	vec3 extents_min;
 	vec3 extents_max;
 
@@ -314,10 +327,11 @@ struct WorldBSP
 	//int unknown_12;
 	float[4] unknown_12;
 
-	void* unknown_13;
-	uint world_flags;
-	void* unknown_14;
+	ubyte* lightmap_data; // no size for this
 
+	uint world_flags; // frame code?
+
+	void* unknown_14;
 	ubyte* leaf_list_contents; // dense packed 1D array, LeafList.data[0..LeafList.length]
 
 	PBlockTable pblock_table;

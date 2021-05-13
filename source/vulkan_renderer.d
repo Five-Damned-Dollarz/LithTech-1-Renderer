@@ -907,8 +907,8 @@ private:
 
 	struct QueueFamily
 	{
-		uint graphics_family;
-		uint present_family;
+		uint graphics_family=uint.max;
+		uint present_family=uint.max;
 	}
 
 	auto GetQueueFamily()
@@ -1662,7 +1662,7 @@ private:
 		Vertex[] verts_extra;
 		ushort[] indices_extra;
 
-		DoNode(bsp.nodes_duplicate, verts_extra, indices_extra);
+		DoNode(bsp.node_root, verts_extra, indices_extra);
 
 		index_count=indices.length;
 		test_out.writeln(index_count);

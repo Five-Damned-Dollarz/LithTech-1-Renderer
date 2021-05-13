@@ -43,10 +43,10 @@ enum ModelFlags
 
 enum ParticleSystemFlags
 {
-	PS_BOUNCE=0x1,
-	PS_SHADOWS=0x2,
-	PS_NEVERDIE=0x4,
-	PS_DUMB=0x8,
+	Bounce=0x1,
+	Shadows=0x2,
+	NeverDie=0x4,
+	Dumb=0x8,
 }
 
 enum SurfaceFlags

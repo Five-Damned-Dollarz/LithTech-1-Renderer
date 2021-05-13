@@ -50,7 +50,7 @@ struct RenderContextInit
 
 struct RenderContext // this is whatever we want
 {
-	char[4] unknown_1;
+	Buffer* unknown_1;
 	int unknown_2; // 0x0000FFFF? "framecode"
 
 	MainWorld* main_world;
@@ -150,13 +150,15 @@ struct DList
 
 struct DEPalette
 {
-	//
+	DLink link;
+	int[3] unknown;
+	Colour[256] colours;
 }
 
 extern(C)
 struct RenderDLL
 {
-	void function(void* /+DObject*+/, void* /+*(DObject + 0x34, array; has 0x24 stride)+/) AttachmentSomething; // called by ProcessAttachment
+	uint /+DObject*?+/ function(void* /+DObject*+/, void* /+*(DObject + 0x34, array; has 0x24 stride)+/) AttachmentSomething; // called by ProcessAttachment
 	TextureData* function(SharedTexture*, void* /+out bool?+/) GetTexture;
 	void function(SharedTexture*) FreeTexture;
 	void function() UnknownFunc_1;
@@ -222,6 +224,6 @@ struct RenderDLL
 	int unknown_6;
 	int unknown_7;
 	HMODULE render_dll_handle;
-	DLink* unknown_8; // Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
+	DLink* unknown_8; // Looks very much like palette data; cast(DEPalette*)unknown_8[i].data - Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
 	uint unknown_9; // unknown
 }
