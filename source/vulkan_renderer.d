@@ -1,6 +1,7 @@
 module VulkanRender;
 
 import vk.Device;
+import Memory;
 
 import erupted;
 import erupted.platform_extensions;
@@ -42,7 +43,7 @@ struct Vertex
 {
 	vec3 pos;
 	vec3 colour;
-	vec3[3] opq; // texture mapping
+	vec2 uv;
 
 	static VkVertexInputBindingDescription GetBindingDescription()
 	{
@@ -72,21 +73,9 @@ struct Vertex
 			{
 				binding: 0,
 				location: 2,
-				format: VK_FORMAT_R32G32B32_SFLOAT,
-				offset: opq.offsetof
+				format: VK_FORMAT_R32G32_SFLOAT,
+				offset: uv.offsetof
 			},
-			{
-				binding: 0,
-				location: 3,
-				format: VK_FORMAT_R32G32B32_SFLOAT,
-				offset: opq.offsetof+vec3.sizeof
-			},
-			{
-				binding: 0,
-				location: 4,
-				format: VK_FORMAT_R32G32B32_SFLOAT,
-				offset: opq.offsetof+(vec3.sizeof*2)
-			}
 		];
 		return attribute_descriptions;
 	}
@@ -94,15 +83,15 @@ struct Vertex
 
 // Test stuff only!
 const Vertex[] _test_triangle=[
-	{ [-500f, -500f, 0f], [1f, 0f, 0f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
-	{ [500f, -500f, 0f], [0f, 1f, 0f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
-	{ [500f, 500f, 0f], [1f, 0f, 1f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
-	{ [-500f, 500f, 0f], [0f, 0f, 1f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
+	{ [-500f, -500f, 0f], [1f, 0f, 0f], [0f, 0f] },
+	{ [500f, -500f, 0f], [0f, 1f, 0f], [0f, 0f] },
+	{ [500f, 500f, 0f], [1f, 0f, 1f], [0f, 0f] },
+	{ [-500f, 500f, 0f], [0f, 0f, 1f], [0f, 0f] },
 
-	{ [-500f, 500f, -500f], [1f, 1f, 1f],  [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
-	{ [-500f, -500f, -500f], [1f, 1f, 1f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
-	{ [500f, 500f, -500f], [1f, 1f, 1f], [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] },
-	{ [500f, -500f, -500f], [1f, 1f, 1f],  [[0f, 0f, 0f], [0f, 0f, 0f], [0f, 0f, 0f]] }
+	{ [-500f, 500f, -500f], [1f, 1f, 1f],  [0f, 0f] },
+	{ [-500f, -500f, -500f], [1f, 1f, 1f], [0f, 0f] },
+	{ [500f, 500f, -500f], [1f, 1f, 1f], [0f, 0f] },
+	{ [500f, -500f, -500f], [1f, 1f, 1f],  [0f, 0f] }
 ];
 const ushort[] _test_triangle_indices=[0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -115,6 +104,7 @@ struct SwapchainBuffer
 
 __gshared VkInstance g_VkInstance;
 __gshared VkPhysicalDevice g_PhysicalDevice;
+__gshared VkPhysicalDeviceMemoryProperties g_PhysicalMemoryProps;
 __gshared VkDevice g_Device;
 
 class VulkanRenderer : Renderer
@@ -209,6 +199,8 @@ public:
 		CreateVkPhysicalDevice();
 		test_out.writeln(CreateVkSurface(g_VkInstance, window, _surface));
 		CreateVkLogicalDevice(g_VkInstance, g_Device);
+
+		g_Allocator=Allocator.GetAllocator();
 
 		vkGetDeviceQueue(g_Device, GetQueueFamily().graphics_family, 0, &_graphics_queue);
 
@@ -805,9 +797,9 @@ LAB_0004814b:
 		{
 			void* start_byte=screen_surface.pixels.ptr;
 			start_byte+=(top*screen_surface.stride)+(left << 1);
-			if (pixels !is null)
+			if (pixels!=null)
 				*pixels=start_byte;
-			if (pitch !is null)
+			if (pitch!=null)
 				*pitch=screen_surface.stride;
 			return 1;
 		}+/
@@ -903,6 +895,8 @@ private:
 		}
 
 		g_PhysicalDevice=devices[0];
+
+		vkGetPhysicalDeviceMemoryProperties(g_PhysicalDevice, &g_PhysicalMemoryProps);
 	}
 
 	struct QueueFamily
@@ -1099,6 +1093,9 @@ private:
 	{
 		VkPhysicalDeviceMemoryProperties memory_properties;
 		vkGetPhysicalDeviceMemoryProperties(g_PhysicalDevice, &memory_properties);
+
+		test_out.writeln(memory_properties);
+
 		foreach(prop; 0..memory_properties.memoryTypeCount)
 		{
 			if ((filter & (1 << prop)) && (memory_properties.memoryTypes[prop].propertyFlags & properties))
@@ -1120,13 +1117,24 @@ private:
 		VkMemoryRequirements memory_reqs;
 		vkGetBufferMemoryRequirements(g_Device, buffer, &memory_reqs);
 
-		VkMemoryAllocateInfo alloc_info={
+		/+VkMemoryAllocateInfo alloc_info={
 			allocationSize: memory_reqs.size,
-			memoryTypeIndex: FindMemoryType(memory_reqs.memoryTypeBits, properties)
+			memoryTypeIndex: FindProperties(g_PhysicalMemoryProps, memory_reqs.memoryTypeBits, properties)
 		};
 
-		vkAllocateMemory(g_Device, &alloc_info, null, &memory);
-		vkBindBufferMemory(g_Device, buffer, memory, 0);
+		vkAllocateMemory(g_Device, &alloc_info, null, &memory);+/
+
+		AllocationCreateInfo alloc_info={
+			usage: properties,
+			type: memory_reqs.memoryTypeBits,
+			size: memory_reqs.size
+		};
+
+		Allocation alloc;
+		g_Allocator.Allocate(alloc_info, alloc);
+		memory=alloc.memory;
+
+		vkBindBufferMemory(g_Device, buffer, alloc.memory, alloc.offset);
 	}
 
 	void CopyVkBuffer(VkBuffer source, VkBuffer dest, VkDeviceSize size)
@@ -1188,6 +1196,7 @@ private:
 		// pitch = mouse x; roll = mouse y
 		// x = v; y = h; z = roll
 		ubo.view=ubo.view.identity.translate(-camera_pos.x, -camera_pos.y, -camera_pos.z).rotatez(camera_view.roll()).rotatex(camera_view.yaw()).rotatey(camera_view.pitch()).transposed(); //mat4.look_at(vec3(2f, 2f, 2f), vec3(0f, 0f, 0f), vec3(0f, 0f, 1f)).transposed();
+		mat4 temp_cam=camera_view.to_matrix!(4, 4);
 
 		ubo.proj=mat4.perspective(_extents.width, _extents.height, 45f, 0.1f, 15000f).transposed();
 
@@ -1415,15 +1424,26 @@ private:
 		VkMemoryRequirements memory_reqs;
 		vkGetImageMemoryRequirements(g_Device, image, &memory_reqs);
 
-		VkMemoryAllocateInfo alloc_info={
+		/+VkMemoryAllocateInfo alloc_info={
 			allocationSize: memory_reqs.size,
 			memoryTypeIndex: FindMemoryType(memory_reqs.memoryTypeBits, properties)
 		};
-		vkAllocateMemory(g_Device, &alloc_info, null, &memory);
+		vkAllocateMemory(g_Device, &alloc_info, null, &memory);+/
+
+		AllocationCreateInfo alloc_info={
+			usage: properties,
+			type: memory_reqs.memoryTypeBits,
+			size: memory_reqs.size
+		};
+
+		Allocation alloc;
+		g_Allocator.Allocate(alloc_info, alloc);
+		memory=alloc.memory;
+
 		vkBindImageMemory(g_Device, image, memory, 0);
 	}
 
-	VkCommandBuffer BeginSingleTimeCommands()
+	public VkCommandBuffer BeginSingleTimeCommands()
 	{
 		VkCommandBufferAllocateInfo alloc_info={
 			level: VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -1441,7 +1461,7 @@ private:
 		return command_buffer;
 	}
 
-	void EndSingleTimeCommands(VkCommandBuffer command_buffer)
+	public void EndSingleTimeCommands(VkCommandBuffer command_buffer)
 	{
 		vkEndCommandBuffer(command_buffer);
 
@@ -1624,6 +1644,8 @@ private:
 		{
 			vert_count=vert_buffer.length;
 
+			//bind polygon.surface.shared_texture.render_data.image_view
+
 			foreach(j, vertex; polygon.DiskVerts())
 			{
 				Vertex new_vert;
@@ -1633,7 +1655,7 @@ private:
 					colour.r=vertex.colour[0]/255f;
 					colour.g=vertex.colour[1]/255f;
 					colour.b=vertex.colour[2]/255f;
-					opq=polygon.surface.opq_map[0..3];
+					uv=vertex.uv;
 				}
 
 				vert_buffer~=new_vert;
@@ -1651,11 +1673,7 @@ private:
 		bool DoNode(Node* node, out Vertex[] verts_out, out ushort[] indices_out)
 		{
 			test_out.writeln(*node);
-			//test_out.writeln(node.polygons[0..16]);
-			/*foreach(poly; node.polygons[0..5])
-			{
-				test_out.writeln(poly.DiskVerts());
-			}*/
+
 			return false;
 		}
 
@@ -1686,7 +1704,7 @@ class Shader
 		return shader_file.rawRead(new ubyte[cast(uint)file_size]);
 	}
 
-	static VkShaderModule CreateShaderModule(ref VkDevice device, inout ubyte[] shader_bytecode)
+	static VkShaderModule CreateShaderModule(ref VkDevice device, const ubyte[] shader_bytecode)
 	{
 		VkShaderModuleCreateInfo shader_create_info={
 			pNext: null,

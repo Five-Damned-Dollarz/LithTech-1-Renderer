@@ -102,9 +102,9 @@ public:
 		{
 			void* start_byte=_surface_main.pixels;
 			start_byte+=(top*_surface_main.pitch)+(left << 1);
-			if (pixels !is null)
+			if (pixels!=null)
 				*pixels=start_byte;
-			if (pitch !is null)
+			if (pitch!=null)
 				*pitch=_surface_main.pitch;
 
 			return 1;

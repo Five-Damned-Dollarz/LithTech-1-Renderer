@@ -64,6 +64,8 @@ struct Plane
 
 enum NodeFlags
 {
+	// 0x1
+	// 0x2
 	Unknown=0x8, // very important, possibly visible?
 }
 
@@ -72,7 +74,7 @@ struct Node
 	NodeFlags flags; // unknown, (flags & 8) seems important
 	Polygon* polygons;
 	Plane* planes;
-	int unknown_1;
+	int side; // 0 = front, 6 = back
 	Leaf* viewer_leaf; // leaf a camera's currently in? mostly null
 	WorldBSP* bsp;
 	vec3 center;
@@ -86,11 +88,11 @@ struct Node
 struct Surface
 {
 	vec3[6] opq_map;
-	void* unknown_1; // texture effect?
+	void* shared_texture; // not filled when recieved by CreateContext
 	Plane* plane;
-	SurfaceFlags flags;
-	ushort texture_id;
+	SurfaceFlags flags; // top byte = surface effect? bottom 3 bytes = flags
 	ushort texture_flags;
+	ushort texture_id;
 	uint index;
 
 	static assert(this.sizeof==92);
@@ -106,14 +108,14 @@ struct LeafList
 struct Leaf
 {
 	float[4] vector; // center + radius?
-	LeafList* leaf_list; // pointer to our leaf list?
+	LeafList* leaf_list;
 	Buffer* unknown_2; // start? -- in place DLink?
 	Buffer* unknown_3; // end?
 	Buffer* unknown_4; // next, if start != end?
-	Buffer* unknown_5; // polygons list?
-	int unknown_6; // set to 0 at the start of each frame draw
+	Buffer* unknown_5; // pointer into WorldBSP.unknown_2 or copy node's polygon list pointer? 4 byte stride
+	int unknown_6; // set to 0 at the start of each frame draw; unknown_5 count?
 	Buffer* unknown_7;
-	int unknown_8;
+	int unknown_8; // leaf list id?
 
 	static assert(this.sizeof==48);
 }
@@ -125,12 +127,13 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 
 	Surface* surface;
 
-	float[3] unknown_1;
+	float unknown_1a;
+	Polygon* next; // [1] = Polygon* next?
+	float unknown_1b;
 	vec3 polygon_list; // from PolygonList in the dat
-	void*[2] unknown_2;
 
-	pragma(msg, unknown_2.offsetof);
-
+	void* unknown_2;
+	void* lightmap_texture; // possibly for our created lightmap RenderTexture?
 	ubyte* lightmap_data;
 
 	ushort unknown; // set to 0 on frame start?
@@ -144,7 +147,8 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 	struct DiskVert
 	{
 		vec4* vertex_data;
-		vec4 unknown_1;
+		vec2 uv; // not normalized, will need texture dimensions to tile in Vulkan; not filled in by CreateContext call
+		private vec2 pad; // unsure if this is used
 		ubyte[4] colour;
 	}
 	DiskVert vertices; // this is intended to be drawn as a triangle fan: [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], etc.
@@ -155,13 +159,13 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 		return (&vertices)[0..(vertex_count)];
 	}
 
-	@property DiskVert[] DiskExtras() return // these are broken up into smaller triangles, possibly related to FixTJunc?
+	@property DiskVert[] DiskExtras() return // this set of triangles is for FixTJunc
 	{
 		return (&vertices)[(vertex_count)..(vertex_count+vertex_extra)];
 	}
 
 	static assert(lightmap_data.offsetof==52);
-	static assert(this.sizeof>=72); // smallest runtime case possible should be 188 or 212?
+	static assert(this.sizeof>=72); // smallest runtime case possible should be 212?
 }
 
 struct MainWorld
@@ -182,18 +186,25 @@ struct MainWorld
 	void* unknown_6;
 
 	float[3][2] unknown_vectors_1; // maybe
-	vec3[4] extents;
-	int unknown_7;
-	void* unknown_8;
+	vec3 unknown_7; // extents?
+	vec3 extents_min; // extents -200
+	vec3 extents_max; // extents +200
+	vec3 extents_normal; // 1f / (max - min)
+	int unknown_8;
+	void* unknown_9;
 
 	WorldData** world_models;
-	int world_model_count;
+	uint world_model_count;
 
 	//int[2] unknown_9;
 
 	//void*[64] buf;
 
-	static assert(this.sizeof>=168);
+	int unknown_10; // 0?
+	MainWorld* self; static assert(self.offsetof==172);
+	void* self_unknown;
+
+	static assert(this.sizeof>=168); // 204?
 }
 
 struct UnknownList // WorldModelList?
@@ -208,7 +219,7 @@ struct UnknownList // WorldModelList?
 	static assert(this.sizeof==24);
 }
 
-struct UnknownObject // WorldModel
+struct UnknownObject // WorldModel -- This is the base Object; Model, WorldModel, Sprite, Light, ParticleSystem, LineSystem, and Container derive from it
 {
 	DLink link;
 	DLink link_unknown; // maybe not even a link?
@@ -222,23 +233,31 @@ struct UnknownObject // WorldModel
 	ModelFlags flags;
 
 	void* unknown_3a;
-	void* unknown_3b;
+	ubyte[4] colour;
 	Buffer* attachments;
 
 	vec3 world_translation;
 	float[4] rotation;
-	float[3] scale;
+	vec3 scale;
 
-	short[4] unknown_5;
-	short[3] frame_code; // [108] is set to 0 on frame start
+	short[5] unknown_5;
+	short[2] frame_code; // [108] is set to 0 on frame start
 
 align(2):
-	ObjectType type_id;
-	void*[6] unknown_6;
-	int unknown_7;
-	mat4 mat4_unknown_1; // ?
+	ObjectType type_id; // at least this much must be in the base class!
+	// 1 align byte
+	float unknown_7;
+	vec3 unknown_vec_1;
+	float[6] unknown_8;
+	int unknown_9;
+	int unknown_10;
 
-	void*[23] buf1;
+	vec3 bounds_min_relative; //mat4 mat4_unknown_1; // ?
+	vec3 bounds_max_relative;
+	vec3 dimensions;
+
+	short unknown_11;
+	void*[25] buf1;
 
 	WorldData* bsp;
 
@@ -252,6 +271,8 @@ align(2):
 	static assert(flags.offsetof==40);
 	static assert(attachments.offsetof==52);
 	static assert(type_id.offsetof==110);
+	//static assert(xxx.offsetof==124); unsure what this is yet, but it's necessary for visibility?
+	static assert(bsp.offsetof==298);
 	// possibly 300 byte stride for one of the object types?
 	// 428-432 stride?
 }
@@ -288,10 +309,10 @@ struct WorldBSP
 	Leaf* leaves;
 	uint leaf_count;
 
-	Buffer** unknown_3; // unsure, seems to have random data
+	short* unknown_3; // 2 byte stride? unsure, seems to have random data
 	uint unknown_3_count;
 
-	uint unknown_4; // possible address? possible flag for something?
+	uint unknown_4; // leaf_list_contents length? possible address? possible flag for something?
 
 	Node* node_root;
 	UnknownList* world_model_root;
@@ -310,7 +331,6 @@ struct WorldBSP
 	uint texture_count;
 
 	/// No clue if this is actually here, or pointed to
-
 	int[26] unknown_10;
 	void*[2] unknown_11;
 
@@ -318,7 +338,7 @@ struct WorldBSP
 	vec3 extents_min;
 	vec3 extents_max;
 
-	vec3 extents_plus_min; // extents_min - 100, don't know why
+	vec3 extents_plus_min; // extents_min - 100
 	vec3 extents_plus_max; // extents_max + 100
 
 	uint info_flags;
@@ -327,12 +347,14 @@ struct WorldBSP
 	//int unknown_12;
 	float[4] unknown_12;
 
-	ubyte* lightmap_data; // no size for this
+	ubyte* lightmap_data; // no size for this; polygons[0..polygon_count].select(x => x.flags & LightMap (0x80)) [w 1B, h 1B, data (w * h * 2B)] as RGB565 packed short
 
 	uint world_flags; // frame code?
 
-	void* unknown_14;
+	void* unknown_14; // diskvert data?
 	ubyte* leaf_list_contents; // dense packed 1D array, LeafList.data[0..LeafList.length]
 
 	PBlockTable pblock_table;
+
+	static assert(this.sizeof==360);
 }

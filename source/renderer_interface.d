@@ -155,11 +155,17 @@ struct DEPalette
 	Colour[256] colours;
 }
 
+enum ClearFlags : uint
+{
+	Colour=0x1,
+	Depth=0x2,
+}
+
 extern(C)
 struct RenderDLL
 {
-	uint /+DObject*?+/ function(void* /+DObject*+/, void* /+*(DObject + 0x34, array; has 0x24 stride)+/) AttachmentSomething; // called by ProcessAttachment
-	TextureData* function(SharedTexture*, void* /+out bool?+/) GetTexture;
+	UnknownObject* /+ DObject* +/ function(void* /+ DObject* +/, void* /+ *(DObject + 0x34, array; has 0x24 stride) +/) AttachmentSomething; // called by ProcessAttachment
+	TextureData* function(SharedTexture*, void* /+ out bool? +/) GetTexture;
 	void function(SharedTexture*) FreeTexture;
 	void function() UnknownFunc_1;
 	void function() UnknownFunc_2;
@@ -187,7 +193,7 @@ struct RenderDLL
 	int function(SharedTexture*) SetMasterPalette;
 	void* function(RenderContextInit*) CreateContext;
 	void function(RenderContext*) DeleteContext;
-	void function(Rect*, uint) Clear;
+	void function(Rect*, ClearFlags) Clear;
 	int function() Start3D;
 	int function() End3D;
 	int function() IsIn3D;
@@ -224,6 +230,6 @@ struct RenderDLL
 	int unknown_6;
 	int unknown_7;
 	HMODULE render_dll_handle;
-	DLink* unknown_8; // Looks very much like palette data; cast(DEPalette*)unknown_8[i].data - Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
+	DLink* unknown_8; // 364 bytes, array of 30 DLinks + an int. Looks very much like palette data; cast(DEPalette*)unknown_8[i].data - Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
 	uint unknown_9; // unknown
 }

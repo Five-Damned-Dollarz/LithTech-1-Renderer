@@ -97,7 +97,7 @@ struct SharedTexture
 /+
  + converts 8-bit indexed ARGB4888 to RGBA8888
  +/
-ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int height, out int channels /+ bytes per pixel? +/)
+ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int height, out int channels /+ bytes per pixel? +/, ubyte rotate=0)
 {
 	width=texture.header.width;
 	height=texture.header.height;
@@ -119,7 +119,19 @@ ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int hei
 			pixel_alpha&=0xF;
 			pixel_alpha|=pixel_alpha << 4;
 		}
-		pixel_view[i]=pixel_colour.r << 24 | pixel_colour.g << 16 | pixel_colour.b << 8 | pixel_alpha;
+
+		uint final_mix=pixel_colour.r << 24 | pixel_colour.g << 16 | pixel_colour.b << 8 | pixel_alpha;
+
+		if (rotate)
+		{
+			asm
+			{
+				mov CL, rotate;
+				ror final_mix, CL;
+			}
+		}
+
+		pixel_view[i]=final_mix;
 	}
 	return pixels;
 }
@@ -134,8 +146,13 @@ class RenderTexture
 
 	SharedTexture* texture_ref;
 
-	private void DumpAsBMP(TextureData* data, ubyte[] pixels)
+	int width;
+	int height;
+
+	public void DumpAsBMP(TextureData* data, ubyte[] pixels_)
 	{
+		int width, height, channels;
+		ubyte[] pixels=TransitionTexturePixels(data, width, height, channels, true);
 		// SANITY CHECK: dump texture as bitmap
 		import Bitmap;
 		Bitmap bitmap_out;
@@ -154,19 +171,20 @@ class RenderTexture
 	}
 
 	public size_t Create(SharedTexture* texture, TextureData* data)
-		in(data !is null)
+		in(data!=null)
 	{
 		texture_ref=texture;
 		texture.render_data=cast(RenderTexture*)(this);
 
-		int width, height, channels;
+		int channels;
 
 		// get pixels
 		width=data.header.width;
 		height=data.header.height;
 		ubyte[] pixels=TransitionTexturePixels(data, width, height, channels);
 
-		return pixels.length;
+		import VulkanRender: g_Device;
+		import vk.Helpers;
 
 		/*assert(width>0);
 		assert(height>0);
@@ -180,30 +198,32 @@ class RenderTexture
 
 		CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
 
-		void* data;
-		vkMapMemory(_device, staging_memory, 0, image_size, 0, &data);
+		void* map_data;
+		vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &map_data);
 		import core.stdc.string: memcpy;
-		memcpy(data, pixels.ptr, cast(size_t)image_size);
-		vkUnmapMemory(_device, staging_memory);
+		memcpy(map_data, pixels.ptr, cast(size_t)image_size);
+		vkUnmapMemory(g_Device, staging_memory);
 
 		// free pixels
 		pixels=null;
 
 		CreateVkImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image, memory);
-		TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		CopyBufferToImage(staging_buffer, _texture_image, width, height);
-		TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		TransitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		CopyBufferToImage(staging_buffer, image, width, height);
+		TransitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-		vkDestroyBuffer(_device, staging_buffer, null);
-		vkFreeMemory(_device, staging_memory, null);
+		vkDestroyBuffer(g_Device, staging_buffer, null);
+		vkFreeMemory(g_Device, staging_memory, null);
 
 		image_view=CreateImageView(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);+/
+
+		return pixels.length;
 
 		assert(0);
 	}
 }
 
-import Main: test_out;
+
 
 class TextureManager
 {
@@ -211,12 +231,14 @@ class TextureManager
 
 	RenderTexture CreateTexture(SharedTexture* texture, TextureData* data)
 	{
+		import Main: test_out;
+
 		RenderTexture r_texture=new RenderTexture();
 		//test_out.writeln();
 		r_texture.Create(texture, data);
 		texture.render_data=&r_texture;
 
-		g_TextureManager.textures~=r_texture;
+		textures~=r_texture;
 
 		return r_texture;
 

@@ -79,7 +79,9 @@ __gshared HINSTANCE g_hInst;
 
 __gshared RenderDLL* _renderer;
 __gshared HWND _window_main;
+
 __gshared Renderer _renderer_inst;
+__gshared RenderContext* g_RenderContext;
 
 __gshared File test_out;
 //__gshared ConVar[110] _convars;
@@ -235,8 +237,56 @@ void SetSoftSky(SharedTexture** textures)
 {
 	test();
 
+	/+foreach(i, texture; g_TextureManager.textures)
+	{
+		char[256] test;
+		auto tex_data=_renderer.GetTexture(texture.texture_ref, test.ptr);
 
-	/+//if (*textures !is null)
+		int width, height, channels;
+		ubyte[] pixels=TransitionTexturePixels(tex_data, width, height, channels, 8);
+
+		// SANITY CHECK: dump texture as bitmap
+		import Bitmap;
+		Bitmap bitmap_out;
+		bitmap_out.pixel_data=pixels;
+		bitmap_out.file_header.file_size=bitmap_out.file_header.pixel_data_offset+bitmap_out.pixel_data.length;
+		bitmap_out.info_header.image_width=width;
+		bitmap_out.info_header.image_height=-height;
+
+		import std.stdio, std.string;
+		File bmp_out;
+		bmp_out.open("tex_dump/texture_%d.bmp".format(i), "wb");
+		bmp_out.rawWrite((&bitmap_out.file_header)[0..1]);
+		bmp_out.rawWrite((&bitmap_out.info_header)[0..1]);
+		bmp_out.rawWrite(bitmap_out.pixel_data[]);
+		bmp_out.close();
+
+		_renderer.FreeTexture(texture.texture_ref);
+	}+/
+
+	/+if (g_RenderContext)
+	{
+		WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
+		test_out.writeln(*bsp);
+		foreach(model; g_RenderContext.main_world.world_models[0..g_RenderContext.main_world.world_model_count])
+		{
+			test_out.writeln(*model);
+			test_out.writeln(*model.objs[0]);
+			//test_out.writeln();
+			foreach(surface; model.objs[0].surfaces[0..model.objs[0].surface_count])
+			{
+				test_out.writeln(surface);
+			}
+			//const char** textures; // array of indexes to texture_string
+			//uint texture_count;
+			foreach(texture; model.objs[0].textures[0..model.objs[0].texture_count])
+			{
+				import std.string;
+				test_out.writeln(texture.fromStringz());
+			}
+		}
+	}+/
+	/+//if (*textures!=null)
 	//	test_out.writeln((*textures)[0..30]);
 
 	test_out.writeln(*_renderer);
@@ -260,17 +310,17 @@ void SetSoftSky(SharedTexture** textures)
 }
 
 void BindTexture(SharedTexture* texture, int unknown)
-	in(texture !is null)
+	in(texture!=null)
 {
-	test();
-	test_out.writeln(*texture);
+	//test();
+	//test_out.writeln(*texture);
 
 	if (texture.render_data)
 	{
 		RenderTexture* render_texture=texture.render_data;
 		TextureData* texture_data=_renderer.GetTexture(texture, null);
 
-		if (texture_data !is null)
+		if (texture_data!=null)
 		{
 			// upload?
 			test_out.writeln(*texture_data);
@@ -308,8 +358,8 @@ void BindTexture(SharedTexture* texture, int unknown)
 
 void UnbindTexture(SharedTexture*)
 {
-	//test();
-	// delete SharedTexture->ref2[RenderTexture] here?
+	test();
+	// delete SharedTexture.render_data here?
 }
 
 int QueryDeletePalette(DEPalette*)
@@ -326,27 +376,34 @@ int SetMasterPalette(SharedTexture* unknown)
 }
 
 void* CreateContext(RenderContextInit* context_init)
-	in(context_init !is null)
+	in(context_init!=null)
 {
 	test();
 
 	test_out.writeln(*context_init);
 
-	RenderContext* temp=cast(RenderContext*)calloc(1, RenderContext.sizeof);
-	temp.main_world=context_init.main_world;
-
-	test_out.writeln(*(cast(Buffer*)temp.main_world.memory_used));
+	g_RenderContext=cast(RenderContext*)calloc(1, RenderContext.sizeof);
+	g_RenderContext.main_world=context_init.main_world;
 
 	import WorldBSP;
-	test_out.writeln(*temp.main_world);
+	test_out.writeln(*g_RenderContext.main_world);
 
-	WorldBSP* bsp=temp.main_world.world_bsp;
+	WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
 	test_out.writeln(*bsp);
+
+	UnknownList* current=bsp.world_model_root.prev;
+	while(current!=bsp.world_model_root)
+	{
+		test_out.writeln(*current);
+		test_out.writeln(*current.data);
+
+		current=current.prev;
+	}
 
 	/+foreach(poly; bsp.polygons[0..bsp.polygon_count])
 	{
 		test_out.writeln(*poly);
-		if (poly.lightmap_data !is null)
+		if (poly.lightmap_data!=null)
 		{
 			import Model: SurfaceFlags;
 			if (poly.surface.flags & SurfaceFlags.LightMap)
@@ -404,23 +461,9 @@ void* CreateContext(RenderContextInit* context_init)
 
 	//TraverseNode(bsp.node_root);
 
-		/+
-			pDVar1 = param_1->prev?;
-			while ((pDVar1 != param_1 && (pvVar2 = (DObject *)pDVar1->data, pvVar2->field_0x124 == 0))) {
-				if ((*stack_begin < g_pMaxStackPos) && (pvVar2->frame_code != g_pVisitPVSRequest->frame_code)) {
-					(*stack_begin)->vec?[*count? + -0xe] = (float)pvVar2;
-					*count? = *count? + 1;
-				}
-				pDVar1 = pDVar1->prev?;
-			}
-		+/
+	(cast(VulkanRenderer)_renderer_inst).CreateBSPVertexBuffer(g_RenderContext.main_world.world_bsp);
 
-	(cast(VulkanRenderer)_renderer_inst).CreateBSPVertexBuffer(temp.main_world.world_bsp);
-
-	//foreach(str; obj.textures[0..obj.texture_count])
-	//	test_out.writeln(str.fromStringz);
-
-	return temp; // softlocks at load screen if this returns null
+	return g_RenderContext; // softlocks at load screen if this returns null
 }
 
 void DeleteContext(RenderContext* context)
@@ -431,8 +474,9 @@ void DeleteContext(RenderContext* context)
 	free(context);
 }
 
-void Clear(Rect*, uint)
+void Clear(Rect* rect, ClearFlags flags)
 {
+	test_out.writeln(*rect, " ", flags);
 	_renderer_inst.Clear();
 }
 
@@ -473,12 +517,12 @@ int IsInOptimized2D()
 }
 
 int RenderScene(SceneDesc* scene_desc)
-	in(scene_desc !is null)
+	in(scene_desc!=null)
 {
-	test();
+	/+test();
 
-	foreach(obj; scene_desc.unknown_array_2[0..scene_desc.unknown_count])
-		test_out.writeln(*obj);
+	WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
+	test_out.writeln(*bsp);+/
 
 	if (_renderer.is_init!=0)
 	{
@@ -547,7 +591,7 @@ void DeleteSurface(ImageSurface* surface)
 }
 
 void GetSurfaceInfo(ImageSurface* surface, int* width, int* height, int* pitch)
-	in(surface !is null)
+	in(surface!=null)
 {
 	/+*width=surface.width;
 	*height=surface.height;
@@ -585,9 +629,9 @@ int LockScreen(int left, int top, int right, int bottom, void** pixels, int* pit
 	{
 		void* start_byte=screen_surface.pixels.ptr;
 		start_byte+=(top*screen_surface.stride)+(left << 1);
-		if (pixels !is null)
+		if (pixels!=null)
 			*pixels=start_byte;
-		if (pitch !is null)
+		if (pitch!=null)
 			*pitch=screen_surface.stride;
 		return 1;
 	}

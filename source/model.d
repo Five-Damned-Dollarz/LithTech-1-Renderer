@@ -1,6 +1,6 @@
 module Model;
 
-enum ModelFlags
+enum ModelFlags : uint
 {
 	Visible=0x1,
 	HasShadows=0x2,
@@ -41,7 +41,7 @@ enum ModelFlags
 	ClientNonSolid=0x8000
 }
 
-enum ParticleSystemFlags
+enum ParticleSystemFlags : uint
 {
 	Bounce=0x1,
 	Shadows=0x2,
@@ -49,7 +49,7 @@ enum ParticleSystemFlags
 	Dumb=0x8,
 }
 
-enum SurfaceFlags
+enum SurfaceFlags : uint
 {
 	Solid=0x1,
 	NonExistant=0x2,
@@ -65,7 +65,7 @@ enum SurfaceFlags
 	DirectionalLight=0x1000,
 }
 
-enum ObjectType // NOTE: the high bit of the object type is reserved for the engine's networking.
+enum ObjectType : ubyte // NOTE: the high bit of the object type is reserved for the engine's networking.
 {
 	Normal=0, // Invisible object. Note, clients aren't told about these when they're created on the server!
 	Model,
