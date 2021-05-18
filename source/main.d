@@ -313,9 +313,8 @@ void BindTexture(SharedTexture* texture, int unknown)
 	in(texture!=null)
 {
 	//test();
-	//test_out.writeln(*texture);
 
-	if (texture.render_data)
+	if (texture.render_data!=null)
 	{
 		RenderTexture* render_texture=texture.render_data;
 		TextureData* texture_data=_renderer.GetTexture(texture, null);
@@ -323,7 +322,7 @@ void BindTexture(SharedTexture* texture, int unknown)
 		if (texture_data!=null)
 		{
 			// upload?
-			test_out.writeln(*texture_data);
+			//test_out.writeln(*texture_data);
 			//test_out.writeln(*render_texture);
 		}
 
@@ -334,23 +333,8 @@ void BindTexture(SharedTexture* texture, int unknown)
 		// create a new RenderTexture
 		TextureData* texture_data=_renderer.GetTexture(texture, null);
 
-		if (auto renderer=cast(VulkanRenderer)_renderer_inst)
-		{
-			RenderTexture r_texture=g_TextureManager.CreateTexture(texture, texture_data);
-
-			//test_out.writeln(g_TextureManager.textures);
-
-			/+import erupted;
-			import VulkanRender;
-
-			(cast(VulkanRenderer)_renderer_inst).CreateTextureImage(texture, r_texture.image, r_texture.memory);
-			test_out.writeln(r_texture.image, " ", r_texture.memory);+/
-
-			/*renderer.CreateTextureImage(texture);
-			renderer.CreateTextureImageView();
-			renderer.CreateTextureSampler();
-			renderer.CreateDescriptorSets();*/
-		}
+		RenderTexture r_texture=g_TextureManager.CreateTexture(texture, texture_data);
+		texture.render_data=cast(RenderTexture*)r_texture;
 
 		_renderer.FreeTexture(texture);
 	}

@@ -18,5 +18,5 @@ void main()
 {
     gl_Position=ubo.proj*ubo.view*ubo.model*vec4(position_in, 1.0);
     fragColour=colour_in;
-    fragTexCoord=uv_in/256.0; // should be div'd by texture dimensions
+    fragTexCoord=uv_in;
 }

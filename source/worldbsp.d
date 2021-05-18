@@ -2,6 +2,7 @@ module WorldBSP;
 
 import RendererTypes: DLink, Buffer;
 import Model;
+import Texture;
 
 import gl3n.linalg;
 
@@ -88,7 +89,7 @@ struct Node
 struct Surface
 {
 	vec3[6] opq_map;
-	void* shared_texture; // not filled when recieved by CreateContext
+	SharedTexture* shared_texture; // not filled when recieved by CreateContext
 	Plane* plane;
 	SurfaceFlags flags; // top byte = surface effect? bottom 3 bytes = flags
 	ushort texture_flags;

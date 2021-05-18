@@ -153,6 +153,8 @@ private:
 	VkMappedMemoryRange _depth_image_memory;
 	VkImageView _depth_image_view;
 
+	VkDescriptorSet _texture_descriptor;
+
 public:
 	override void Destroy()
 	{
@@ -396,16 +398,18 @@ public:
 		};
 
 		CreateDescriptorSetLayout();
+		CreateTextureDescriptorLayout();
 
+		VkDescriptorSetLayout[] pipeline_descriptor_layouts=[_descriptor_set_layout, _texture_descriptor_layout];
 		VkPipelineLayoutCreateInfo pipeline_layout_info={
-			setLayoutCount: 1,
-			pSetLayouts: &_descriptor_set_layout,
+			setLayoutCount: pipeline_descriptor_layouts.length,
+			pSetLayouts: pipeline_descriptor_layouts.ptr,
 			pushConstantRangeCount: 0,
 			pPushConstantRanges: null
 		};
 
-		vkCreatePipelineLayout(g_Device, &pipeline_layout_info, null, &_pipeline_layout);
-		test_out.writeln("Pipeline Layout created.");
+		VkResult res=vkCreatePipelineLayout(g_Device, &pipeline_layout_info, null, &_pipeline_layout);
+		test_out.writeln("Pipeline Layout created. ", res);
 
 		/// Pipeline for real!
 
@@ -473,7 +477,10 @@ public:
 
 		CreateUniformBuffers();
 		CreateDescriptorPool();
+		CreateTextureDescriptorPool();
 		CreateDescriptorSets();
+
+		CreateTextureDescriptorSet(_texture_image_view, _texture_descriptor);
 
 		CreateCommandBuffers();
 
@@ -505,6 +512,7 @@ public:
 				vkCmdBindVertexBuffers(buffer, 0, vertex_buffers.length, vertex_buffers.ptr, offsets.ptr);
 				vkCmdBindIndexBuffer(buffer, _vertex_index_buffer, 0, VK_INDEX_TYPE_UINT16);
 				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_sets[i], 0, null);
+				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 1, 1, &_texture_descriptor, 0, null);
 				vkCmdDrawIndexed(buffer, index_count, 1, 0, 0, 0);
 				vkCmdEndRenderPass(buffer);
 				vkEndCommandBuffer(buffer);
@@ -525,7 +533,7 @@ public:
 	override void RenderScene(SceneDesc* scene_desc) // vkCmd*
 	{
 		camera_pos=vec3(scene_desc.camera_position);
-		camera_view=quat(scene_desc.camera_rotation[3], vec3(scene_desc.camera_rotation[0..3]));
+		camera_view=quat(scene_desc.camera_rotation[3], -vec3(scene_desc.camera_rotation[0..3]));
 
 		/*auto cam_x = scene_desc.camera_rotation[0];
 		auto cam_y = scene_desc.camera_rotation[1];
@@ -700,20 +708,20 @@ LAB_0004814b:
 		VkSemaphore[] wait_semaphores=[ _is_image_available ];
 		VkSemaphore[] signal_semaphores=[ _is_render_finished ];
 
-		//import Main: _is_in_3D;
+		import Main: _is_in_3D, g_RenderContext;
 		//if (_is_in_3D)
 		{
 			UpdateUniformBuffer(image_index);
 
-			void SetCommandBuffer(size_t i)
+			void SetCommandBuffer(size_t image_index)
 			{
 				VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ];
 
-				auto buffer=_command_buffers[i];
+				auto buffer=_command_buffers[image_index];
 
 				VkRenderPassBeginInfo render_pass_begin_info={
 					renderPass: _render_pass,
-					framebuffer: _buffers[i].framebuffer,
+					framebuffer: _buffers[image_index].framebuffer,
 					renderArea: {
 						offset: { 0, 0 },
 						extent: _extents
@@ -733,9 +741,27 @@ LAB_0004814b:
 
 				vkCmdBindVertexBuffers(buffer, 0, vertex_buffers.length, vertex_buffers.ptr, offsets.ptr);
 				vkCmdBindIndexBuffer(buffer, _vertex_index_buffer, 0, VK_INDEX_TYPE_UINT16);
-				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_sets[i], 0, null);
+				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_sets[image_index], 0, null);
+				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 1, 1, &_texture_descriptor, 0, null);
 
-				vkCmdDrawIndexed(buffer, index_count, 1, 0, 0, 0);
+				if (g_RenderContext !is null)
+				{
+					WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
+
+					size_t index_start=0;
+
+					foreach(i, polygon; bsp.polygons[0..bsp.polygon_count])
+					{
+						VkDescriptorSet texture_image=(cast(RenderTexture)polygon.surface.shared_texture.render_data).texture_descriptor;
+						vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 1, 1, &texture_image, 0, null);
+
+						int vert_count=(polygon.DiskVerts().length-2)*3;
+						vkCmdDrawIndexed(buffer, vert_count, 1, index_start, 0, 0);
+						index_start+=vert_count;
+					}
+				}
+
+				//vkCmdDrawIndexed(buffer, index_count, 1, 0, 0, 0);
 
 				vkCmdEndRenderPass(buffer);
 				vkEndCommandBuffer(buffer);
@@ -743,8 +769,6 @@ LAB_0004814b:
 
 			SetCommandBuffer(image_index);
 
-			//VkSemaphore[] wait_semaphores=[ _is_image_available ];
-			//VkSemaphore[] signal_semaphores=[ _is_render_finished ];
 			VkPipelineStageFlags[] wait_stages = [ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ];
 			VkSubmitInfo submit_info={
 				waitSemaphoreCount: 1,
@@ -1114,20 +1138,6 @@ private:
 			usage: usage,
 			sharingMode: VK_SHARING_MODE_EXCLUSIVE
 		};
-
-		/+vkCreateBuffer(g_Device, &buffer_info, null, &buffer);
-
-		VkMemoryRequirements memory_reqs;
-		vkGetBufferMemoryRequirements(g_Device, buffer, &memory_reqs);
-
-		VkMemoryAllocateInfo alloc_info={
-			allocationSize: memory_reqs.size,
-			memoryTypeIndex: FindMemoryType(memory_reqs.memoryTypeBits, properties)
-		};
-
-		vkAllocateMemory(g_Device, &alloc_info, null, &memory);
-
-		vkBindBufferMemory(g_Device, buffer, memory, 0);+/
 		CreateAllocBuffer(g_Allocator, buffer_info, properties, buffer, &memory, null);
 	}
 
@@ -1195,7 +1205,7 @@ private:
 		ubo.model=mat4.identity.translate(0f, 0f, 0f).transposed();
 		// pitch = mouse x; roll = mouse y
 		// x = v; y = h; z = roll
-		ubo.view=ubo.view.identity.translate(-camera_pos.x, -camera_pos.y, -camera_pos.z).rotatez(camera_view.roll()).rotatex(camera_view.yaw()).rotatey(camera_view.pitch()).transposed(); //mat4.look_at(vec3(2f, 2f, 2f), vec3(0f, 0f, 0f), vec3(0f, 0f, 1f)).transposed();
+		ubo.view=ubo.view.identity.translate(-camera_pos.x, -camera_pos.y, -camera_pos.z).rotatex(camera_view.roll()-1.57).rotatey(camera_view.pitch()-1.57).rotatez(camera_view.yaw()-1.57).transposed(); //mat4.look_at(vec3(2f, 2f, 2f), vec3(0f, 0f, 0f), vec3(0f, 0f, 1f)).transposed();
 		mat4 temp_cam=camera_view.to_matrix!(4, 4);
 
 		ubo.proj=mat4.perspective(_extents.width, _extents.height, 45f, 0.1f, 15000f).transposed();
@@ -1227,7 +1237,7 @@ private:
 
 		VkDescriptorSetLayoutBinding sampler_layout_binding={
 			binding: 1,
-			descriptorType: VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			descriptorType: VK_DESCRIPTOR_TYPE_SAMPLER,
 			descriptorCount: 1,
 			pImmutableSamplers: null,
 			stageFlags: VK_SHADER_STAGE_FRAGMENT_BIT
@@ -1251,7 +1261,7 @@ private:
 			descriptorCount: _buffers.length
 		},
 		{
-			type: VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			type: VK_DESCRIPTOR_TYPE_SAMPLER,
 			descriptorCount: _buffers.length
 		} ];
 
@@ -1269,8 +1279,6 @@ private:
 		VkDescriptorSetLayout[] layouts=new VkDescriptorSetLayout[_buffers.length];
 		layouts[]=_descriptor_set_layout;
 
-		test_out.writeln("Layouts: ", layouts);
-
 		VkDescriptorSetAllocateInfo alloc_info={
 			descriptorPool: _descriptor_pool,
 			descriptorSetCount: _buffers.length,
@@ -1278,9 +1286,7 @@ private:
 		};
 
 		_descriptor_sets=new VkDescriptorSet[_buffers.length];
-		test_out.writeln(vkAllocateDescriptorSets(g_Device, &alloc_info, _descriptor_sets.ptr));
-
-		test_out.writeln(_descriptor_sets);
+		vkAllocateDescriptorSets(g_Device, &alloc_info, _descriptor_sets.ptr);
 
 		foreach(i; 0.._buffers.length)
 		{
@@ -1292,7 +1298,7 @@ private:
 
 			VkDescriptorImageInfo image_info={
 				imageLayout: VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				imageView: _texture_image_view,
+				//imageView: _texture_image_view,
 				sampler: _texture_sampler
 			};
 
@@ -1309,7 +1315,7 @@ private:
 				dstSet: _descriptor_sets[i],
 				dstBinding: 1,
 				dstArrayElement: 0,
-				descriptorType: VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				descriptorType: VK_DESCRIPTOR_TYPE_SAMPLER,
 				descriptorCount: 1,
 				pImageInfo: &image_info
 			} ];
@@ -1318,14 +1324,74 @@ private:
 		}
 	}
 
+	VkDescriptorSetLayout _texture_descriptor_layout;
+	VkDescriptorPool _texture_descriptor_pool;
+	void CreateTextureDescriptorLayout()
+	{
+		VkDescriptorSetLayoutBinding texture_binding={
+			binding: 0,
+			descriptorType: VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			descriptorCount: 1,
+			stageFlags: VK_SHADER_STAGE_FRAGMENT_BIT
+		};
+
+		VkDescriptorSetLayoutCreateInfo create_info={
+			bindingCount: 1,
+			pBindings: &texture_binding
+		};
+
+		vkCreateDescriptorSetLayout(g_Device, &create_info, null, &_texture_descriptor_layout);
+	}
+
+	void CreateTextureDescriptorPool()
+	{
+		VkDescriptorPoolSize[] pool_size=[ {
+			type: VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			descriptorCount: 1024
+		} ];
+
+		VkDescriptorPoolCreateInfo pool_info={
+			poolSizeCount: pool_size.length,
+			pPoolSizes: pool_size.ptr,
+			maxSets: 1024
+		};
+
+		vkCreateDescriptorPool(g_Device, &pool_info, null, &_texture_descriptor_pool);
+	}
+
+	public void CreateTextureDescriptorSet(VkImageView image_view, out VkDescriptorSet set_out)
+	{
+		VkDescriptorSetAllocateInfo alloc_info={
+			descriptorPool: _texture_descriptor_pool,
+			descriptorSetCount: 1,
+			pSetLayouts: &_texture_descriptor_layout
+		};
+
+		vkAllocateDescriptorSets(g_Device, &alloc_info, &set_out);
+
+		VkDescriptorImageInfo image_info={
+			imageLayout: VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			imageView: image_view,
+			//sampler: _texture_sampler
+		};
+
+		VkWriteDescriptorSet[] descriptor_write=[ {
+			dstSet: set_out,
+			dstBinding: 0,
+			dstArrayElement: 0,
+			descriptorType: VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+			descriptorCount: 1,
+			pImageInfo: &image_info
+		} ];
+
+		vkUpdateDescriptorSets(g_Device, descriptor_write.length, descriptor_write.ptr, 0, null);
+	}
+
 	VkImage _texture_image;
 	VkMappedMemoryRange _texture_image_memory;
 
-	public void CreateTextureImage()//SharedTexture* texture)
+	public void CreateTextureImage()
 	{
-		//vkDestroyImage(g_Device, _texture_image, null);
-		//vkFreeMemory(g_Device, _texture_image_memory, null);
-
 		//if (TextureData* tex_data=texture.engine_data)
 		{
 			import std.string: toStringz;
@@ -1348,11 +1414,9 @@ private:
 			CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
 
 			void* data;
-			//vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &data);
 			vmaMapMemory(staging_memory, &data);
 			import core.stdc.string: memcpy;
 			memcpy(data, pixels.ptr, cast(size_t)image_size);
-			//vkUnmapMemory(g_Device, staging_memory);
 			vmaUnmapMemory(staging_memory);
 
 			// free pixels
@@ -1363,7 +1427,7 @@ private:
 			CopyBufferToImage(staging_buffer, _texture_image, width, height);
 			TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-			//vkDestroyBuffer(g_Device, staging_buffer, null);
+			vkDestroyBuffer(g_Device, staging_buffer, null);
 			//vkFreeMemory(g_Device, staging_memory.memory, null);
 		}
 	}
@@ -1374,11 +1438,11 @@ private:
 		{
 			int width, height, channels;
 
-			ubyte[] pixels=TransitionTexturePixels(tex_data, width, height, channels);
+			ubyte[] pixels=TransitionTexturePixels(tex_data, width, height, channels, 8);
 
 			size_t image_size=width*height*channels;
 
-			test_out.writeln(width, "x", height, " ", pixels[0..128]);
+			// debug test_out.writeln(width, "x", height, " ", pixels[0..128]);
 
 			VkBuffer staging_buffer;
 			VkMappedMemoryRange staging_memory;
@@ -1386,22 +1450,20 @@ private:
 			CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
 
 			void* data;
-			//vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &data);
 			vmaMapMemory(staging_memory, &data);
 			import core.stdc.string: memcpy;
 			memcpy(data, pixels.ptr, cast(size_t)image_size);
-			//vkUnmapMemory(g_Device, staging_memory);
 			vmaUnmapMemory(staging_memory);
 
 			// free pixels
 			pixels=null;
 
 			CreateVkImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture_img, texture_mem);
-			TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+			TransitionImageLayout(texture_img, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 			CopyBufferToImage(staging_buffer, texture_img, width, height);
-			TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			TransitionImageLayout(texture_img, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-			//vkDestroyBuffer(g_Device, staging_buffer, null);
+			vkDestroyBuffer(g_Device, staging_buffer, null);
 			//vkFreeMemory(g_Device, staging_memory.memory, null);
 		}
 	}
@@ -1530,12 +1592,13 @@ private:
 
 	VkImageView _texture_image_view;
 
-	public VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags)
+	public VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags, VkComponentMapping* colour_map=null)
 	{
 		VkImageViewCreateInfo view_info={
 			image: image,
 			viewType: VK_IMAGE_VIEW_TYPE_2D,
 			format: format,
+			components: colour_map ? *colour_map : VkComponentMapping(VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY),
 			subresourceRange: {
 				aspectMask: aspect_flags,
 				baseMipLevel: 0,

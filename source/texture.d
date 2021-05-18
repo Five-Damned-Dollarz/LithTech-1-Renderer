@@ -120,7 +120,7 @@ ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int hei
 			pixel_alpha|=pixel_alpha << 4;
 		}
 
-		uint final_mix=pixel_colour.r << 24 | pixel_colour.g << 16 | pixel_colour.b << 8 | pixel_alpha;
+		uint final_mix=pixel_colour.b << 24 | pixel_colour.g << 16 | pixel_colour.r << 8 | pixel_alpha;
 
 		if (rotate)
 		{
@@ -141,8 +141,10 @@ import erupted;
 class RenderTexture
 {
 	VkImage image;
-	VkDeviceMemory memory;
+	VkMappedMemoryRange memory;
 	VkImageView image_view;
+
+	VkDescriptorSet texture_descriptor;
 
 	SharedTexture* texture_ref;
 
@@ -152,7 +154,7 @@ class RenderTexture
 	public void DumpAsBMP(TextureData* data, ubyte[] pixels_)
 	{
 		int width, height, channels;
-		ubyte[] pixels=TransitionTexturePixels(data, width, height, channels, true);
+		ubyte[] pixels=TransitionTexturePixels(data, width, height, channels, 8);
 		// SANITY CHECK: dump texture as bitmap
 		import Bitmap;
 		Bitmap bitmap_out;
@@ -174,56 +176,22 @@ class RenderTexture
 		in(data!=null)
 	{
 		texture_ref=texture;
-		texture.render_data=cast(RenderTexture*)(this);
+		texture.render_data=(cast(RenderTexture*)this);
 
-		int channels;
+		import Main: _renderer_inst;
+		import VulkanRender;
+		(cast(VulkanRenderer)_renderer_inst).CreateTextureImage(texture, image, memory);
+		// ??, G, ??, ??
+		VkComponentMapping map=VkComponentMapping(VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A);
+		image_view=(cast(VulkanRenderer)_renderer_inst).CreateImageView(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, &map);
 
-		// get pixels
-		width=data.header.width;
-		height=data.header.height;
-		ubyte[] pixels=TransitionTexturePixels(data, width, height, channels);
+		(cast(VulkanRenderer)_renderer_inst).CreateTextureDescriptorSet(image_view, texture_descriptor);
 
-		import VulkanRender: g_Device;
-		import vk.Helpers;
-
-		/*assert(width>0);
-		assert(height>0);
-		assert(channels>0);
-		assert(pixels.length==width*height*channels);*/
-
-		/+size_t image_size=width*height*channels;
-
-		VkBuffer staging_buffer;
-		VkDeviceMemory staging_memory;
-
-		CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
-
-		void* map_data;
-		vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &map_data);
-		import core.stdc.string: memcpy;
-		memcpy(map_data, pixels.ptr, cast(size_t)image_size);
-		vkUnmapMemory(g_Device, staging_memory);
-
-		// free pixels
-		pixels=null;
-
-		CreateVkImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image, memory);
-		TransitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-		CopyBufferToImage(staging_buffer, image, width, height);
-		TransitionImageLayout(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		vkDestroyBuffer(g_Device, staging_buffer, null);
-		vkFreeMemory(g_Device, staging_memory, null);
-
-		image_view=CreateImageView(image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);+/
-
-		return pixels.length;
+		return 0;
 
 		assert(0);
 	}
 }
-
-
 
 class TextureManager
 {
@@ -234,22 +202,11 @@ class TextureManager
 		import Main: test_out;
 
 		RenderTexture r_texture=new RenderTexture();
-		//test_out.writeln();
 		r_texture.Create(texture, data);
-		texture.render_data=&r_texture;
 
 		textures~=r_texture;
 
 		return r_texture;
-
-		//(cast(VulkanRenderer)_renderer_inst).CreateTextureImage(texture, r_texture.image, r_texture.memory);
-
-		//test_out.writeln(r_texture.image, " ", r_texture.memory);
-
-		/*renderer.CreateTextureImage(texture);
-		renderer.CreateTextureImageView();
-		renderer.CreateTextureSampler();
-		renderer.CreateDescriptorSets();*/
 	}
 }
 
