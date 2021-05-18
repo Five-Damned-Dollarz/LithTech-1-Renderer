@@ -7,13 +7,13 @@ enum ModelFlags : uint
 	PolygridUnsigned=0x2,
 
 	ColourTint=0x4, // If this is set, it draws a model in 2 passes.  In the second pass, it scales down the color with
-	                // ColorR, ColorG, and ColorB.  This is used to tint the skins in multiplayer.  Note: it uses powers
-	                // of 2 to determine scale so the color scale maps like this:
-	                // > 253 = 1.0
-	                // > 126 = 0.5
-	                // > 62  = 0.25
-	                // > 29  = 0.12
-	                // otherwise 0
+		// ColorR, ColorG, and ColorB.  This is used to tint the skins in multiplayer.  Note: it uses powers
+		// of 2 to determine scale so the color scale maps like this:
+		// > 253 = 1.0
+		// > 126 = 0.5
+		// > 62  = 0.25
+		// > 29  = 0.12
+		// otherwise 0
 
 	CastsShadows=0x8, // for lights
 	RotateableSprite=0x8, // sprites only
@@ -38,7 +38,50 @@ enum ModelFlags : uint
 	SkyObject=0x1000,
 	Solid=0x2000,
 	BoxPhysics=0x4000,
-	ClientNonSolid=0x8000
+	ClientNonSolid=0x8000,
+
+	ClientFlagMask=(Visible|HasShadows|PolygridUnsigned|
+		ColourTint|CastsShadows|RotateableSprite|
+		GouraudShade|UpdateUnseen|SolidLight|
+		Wireframe|WasDrawn|GlowSprite|
+		OnlyLightWorld|EnvironmentMapped|
+		SpriteZBias|DontLightBackfaces|
+		IsReallyClose|FogLight|AnimationTransition|
+		SpriteNoZ|FullPositionResolution|NoLight|
+		HardwareOnly|YRotation|SkyObject|
+		Solid|BoxPhysics|ClientNonSolid),
+
+	// Server only flags.
+	TouchNotify=(1<<16), // Gets touch notification.
+	Gravity=(1<<17), // Gravity is applied.
+	StairStep=(1<<18), // Steps up stairs.
+	ModelKeys=(1<<19), // The object won't get get MID_MODELSTRINGKEY messages unless
+		// it sets this flag.
+	KeepAlive=(1<<20), // Save and restore this object when switching worlds.
+	GoThruWorld=(1<<21), // Object can pass through world
+	RayHit=(1<<22), // Object is hit by raycasts.
+	DontFollowStanding=(1<<23), // Dont follow the object this object is standing on.
+	ForceClientUpdate=(1<<24), // Force client updates even if the object is OT_NORMAL or invisible.
+		// Use this whenever possible.. it saves cycles.
+	NoSliding=(1<<25), // Object won't slide agaist polygons
+
+	PointCollide=(1<<26), // Uses much (10x) faster physics for collision detection, but the
+		// object is a point (dims 0,0,0).  Standing info is not set when
+		// this flag is set.
+
+	RemoveIfOutside=(1<<27), // Remove this object automatically if it gets outside the world.
+
+	ForceOptimizeObject=(1<<28), // Force the engine to optimize this object
+		// as if the FLAG_OPTIMIZEOBJECT flags were
+		// cleared.  This can be used if you have a visible
+		// object that's an attachment but it doesn't need
+		// touch notifies or raycast hits (like a gun-in-hand).
+
+	// Internal flags.  Descriptions are there to help the DE developers remember what
+	// they're there for, NOT for general use!
+	Internal1=(1<<29), // (Did the renderer see the object).
+	Internal2=(1<<30), // (Used by ClientDE::FindObjectsInSphere).
+	LastFlag=(1<<31),
 }
 
 enum ParticleSystemFlags : uint

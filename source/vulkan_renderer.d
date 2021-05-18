@@ -3,6 +3,8 @@ module VulkanRender;
 import vk.Device;
 import Memory;
 
+//import vk_mem_alloc;
+
 import erupted;
 import erupted.platform_extensions;
 mixin Platform_Extensions!USE_PLATFORM_WIN32_KHR;
@@ -104,6 +106,7 @@ struct SwapchainBuffer
 
 __gshared VkInstance g_VkInstance;
 __gshared VkPhysicalDevice g_PhysicalDevice;
+__gshared VkPhysicalDeviceProperties g_PhysicalDeviceProps;
 __gshared VkPhysicalDeviceMemoryProperties g_PhysicalMemoryProps;
 __gshared VkDevice g_Device;
 
@@ -141,20 +144,20 @@ private:
 	VkSemaphore _is_render_finished;
 
 	VkBuffer _vertex_buffer;
-	VkDeviceMemory _vertex_buffer_memory;
+	VkMappedMemoryRange _vertex_buffer_memory;
 
 	VkBuffer _vertex_index_buffer;
-	VkDeviceMemory _vertex_index_memory;
+	VkMappedMemoryRange _vertex_index_memory;
 
 	VkImage _depth_image;
-	VkDeviceMemory _depth_image_memory;
+	VkMappedMemoryRange _depth_image_memory;
 	VkImageView _depth_image_view;
 
 public:
 	override void Destroy()
 	{
 		vkDestroyBuffer(g_Device, _vertex_buffer, null);
-		vkFreeMemory(g_Device, _vertex_buffer_memory, null);
+		vkFreeMemory(g_Device, _vertex_buffer_memory.memory, null);
 
 		// destroy framebuffers lol
 
@@ -465,8 +468,8 @@ public:
 		_texture_image_view=CreateImageView(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 		CreateTextureSampler();
 
-		CreateVertexBuffer(g_Device, cast(VkDeviceSize)(Vertex.sizeof*_test_triangle.length), cast(void*)_test_triangle.ptr, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, _vertex_buffer, _vertex_buffer_memory);
-		CreateVertexBuffer(g_Device, cast(VkDeviceSize)(ushort.sizeof*_test_triangle_indices.length), cast(void*)_test_triangle_indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
+		CreateVertexBuffer(cast(VkDeviceSize)(Vertex.sizeof*_test_triangle.length), cast(void*)_test_triangle.ptr, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, _vertex_buffer, _vertex_buffer_memory);
+		CreateVertexBuffer(cast(VkDeviceSize)(ushort.sizeof*_test_triangle_indices.length), cast(void*)_test_triangle_indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
 
 		CreateUniformBuffers();
 		CreateDescriptorPool();
@@ -1104,7 +1107,7 @@ private:
 		assert(0, "No valid memory types.");
 	}
 
-	void CreateVkBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, out VkBuffer buffer, out VkDeviceMemory memory)
+	void CreateVkBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, out VkBuffer buffer, out VkMappedMemoryRange memory)
 	{
 		VkBufferCreateInfo buffer_info={
 			size: size,
@@ -1112,29 +1115,20 @@ private:
 			sharingMode: VK_SHARING_MODE_EXCLUSIVE
 		};
 
-		vkCreateBuffer(g_Device, &buffer_info, null, &buffer);
+		/+vkCreateBuffer(g_Device, &buffer_info, null, &buffer);
 
 		VkMemoryRequirements memory_reqs;
 		vkGetBufferMemoryRequirements(g_Device, buffer, &memory_reqs);
 
-		/+VkMemoryAllocateInfo alloc_info={
+		VkMemoryAllocateInfo alloc_info={
 			allocationSize: memory_reqs.size,
-			memoryTypeIndex: FindProperties(g_PhysicalMemoryProps, memory_reqs.memoryTypeBits, properties)
+			memoryTypeIndex: FindMemoryType(memory_reqs.memoryTypeBits, properties)
 		};
 
-		vkAllocateMemory(g_Device, &alloc_info, null, &memory);+/
+		vkAllocateMemory(g_Device, &alloc_info, null, &memory);
 
-		AllocationCreateInfo alloc_info={
-			usage: properties,
-			type: memory_reqs.memoryTypeBits,
-			size: memory_reqs.size
-		};
-
-		Allocation alloc;
-		g_Allocator.Allocate(alloc_info, alloc);
-		memory=alloc.memory;
-
-		vkBindBufferMemory(g_Device, buffer, alloc.memory, alloc.offset);
+		vkBindBufferMemory(g_Device, buffer, memory, 0);+/
+		CreateAllocBuffer(g_Allocator, buffer_info, properties, buffer, &memory, null);
 	}
 
 	void CopyVkBuffer(VkBuffer source, VkBuffer dest, VkDeviceSize size)
@@ -1152,36 +1146,42 @@ private:
 	}
 
 	// rename to PopulateBuffer, or something?
-	void CreateVertexBuffer(VkDevice device, VkDeviceSize size, void* data, VkBufferUsageFlags flags, out VkBuffer buffer_out, out VkDeviceMemory memory_out)
+	void CreateVertexBuffer(VkDeviceSize size, void* data, VkBufferUsageFlags flags, out VkBuffer buffer_out, out VkMappedMemoryRange memory_out)
 	{
 		VkBuffer staging_buffer;
 		VkDeviceMemory staging_memory;
-		CreateVkBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
+
+		VkBufferCreateInfo buffer_info={
+			size: size,
+			usage: VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			sharingMode: VK_SHARING_MODE_EXCLUSIVE
+		};
+		VkMappedMemoryRange range;
+		CreateAllocBuffer(g_Allocator, buffer_info, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, &range, null);
 
 		void* staging_data;
-		vkMapMemory(device, staging_memory, 0, size, 0, &staging_data);
-
+		vmaMapMemory(range, &staging_data);
 		import core.stdc.string: memcpy;
 		memcpy(staging_data, data, cast(size_t)size);
+		vmaUnmapMemory(range);
 
-		vkUnmapMemory(device, staging_memory);
-
-		CreateVkBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | flags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer_out, memory_out);
+		buffer_info.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT | flags;
+		CreateAllocBuffer(g_Allocator, buffer_info, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer_out, &memory_out, null);
 		CopyVkBuffer(staging_buffer, buffer_out, size);
 
-		vkDestroyBuffer(device, staging_buffer, null);
-		vkFreeMemory(device, staging_memory, null);
+		vkDestroyBuffer(g_Device, staging_buffer, null);
+		vkFreeMemory(g_Device, staging_memory, null);
 	}
 
 	VkBuffer[] _uniform_buffers;
-	VkDeviceMemory[] _uniform_buffers_memory;
+	VkMappedMemoryRange[] _uniform_buffers_memory;
 
 	void CreateUniformBuffers()
 	{
 		VkDeviceSize buffer_size=UniformBufferObject.sizeof;
 
 		_uniform_buffers=new VkBuffer[_buffers.length];
-		_uniform_buffers_memory=new VkDeviceMemory[_buffers.length];
+		_uniform_buffers_memory=new VkMappedMemoryRange[_buffers.length];
 
 		foreach(i; 0.._buffers.length)
 		{
@@ -1201,12 +1201,14 @@ private:
 		ubo.proj=mat4.perspective(_extents.width, _extents.height, 45f, 0.1f, 15000f).transposed();
 
 		void* data;
-		vkMapMemory(g_Device, _uniform_buffers_memory[image_index], 0, ubo.sizeof, 0, &data);
+		//vkMapMemory(g_Device, _uniform_buffers_memory[image_index], 0, ubo.sizeof, 0, &data);
+		vmaMapMemory(_uniform_buffers_memory[image_index], &data);
 
 		import core.stdc.string: memcpy;
 		memcpy(data, &ubo, ubo.sizeof);
 
-		vkUnmapMemory(g_Device, _uniform_buffers_memory[image_index]);
+		//vkUnmapMemory(g_Device, _uniform_buffers_memory[image_index]);
+		vmaUnmapMemory(_uniform_buffers_memory[image_index]);
 	}
 
 	VkDescriptorSetLayout _descriptor_set_layout;
@@ -1317,7 +1319,7 @@ private:
 	}
 
 	VkImage _texture_image;
-	VkDeviceMemory _texture_image_memory;
+	VkMappedMemoryRange _texture_image_memory;
 
 	public void CreateTextureImage()//SharedTexture* texture)
 	{
@@ -1341,15 +1343,17 @@ private:
 			size_t image_size=width*height*channels;
 
 			VkBuffer staging_buffer;
-			VkDeviceMemory staging_memory;
+			VkMappedMemoryRange staging_memory;
 
 			CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
 
 			void* data;
-			vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &data);
+			//vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &data);
+			vmaMapMemory(staging_memory, &data);
 			import core.stdc.string: memcpy;
 			memcpy(data, pixels.ptr, cast(size_t)image_size);
-			vkUnmapMemory(g_Device, staging_memory);
+			//vkUnmapMemory(g_Device, staging_memory);
+			vmaUnmapMemory(staging_memory);
 
 			// free pixels
 			pixels=null;
@@ -1359,12 +1363,12 @@ private:
 			CopyBufferToImage(staging_buffer, _texture_image, width, height);
 			TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-			vkDestroyBuffer(g_Device, staging_buffer, null);
-			vkFreeMemory(g_Device, staging_memory, null);
+			//vkDestroyBuffer(g_Device, staging_buffer, null);
+			//vkFreeMemory(g_Device, staging_memory.memory, null);
 		}
 	}
 
-	public void CreateTextureImage(SharedTexture* texture, out VkImage texture_img, out VkDeviceMemory texture_mem)
+	public void CreateTextureImage(SharedTexture* texture, out VkImage texture_img, out VkMappedMemoryRange texture_mem)
 	{
 		if (TextureData* tex_data=texture.engine_data)
 		{
@@ -1377,15 +1381,17 @@ private:
 			test_out.writeln(width, "x", height, " ", pixels[0..128]);
 
 			VkBuffer staging_buffer;
-			VkDeviceMemory staging_memory;
+			VkMappedMemoryRange staging_memory;
 
 			CreateVkBuffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_memory);
 
 			void* data;
-			vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &data);
+			//vkMapMemory(g_Device, staging_memory, 0, image_size, 0, &data);
+			vmaMapMemory(staging_memory, &data);
 			import core.stdc.string: memcpy;
 			memcpy(data, pixels.ptr, cast(size_t)image_size);
-			vkUnmapMemory(g_Device, staging_memory);
+			//vkUnmapMemory(g_Device, staging_memory);
+			vmaUnmapMemory(staging_memory);
 
 			// free pixels
 			pixels=null;
@@ -1395,12 +1401,12 @@ private:
 			CopyBufferToImage(staging_buffer, texture_img, width, height);
 			TransitionImageLayout(_texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-			vkDestroyBuffer(g_Device, staging_buffer, null);
-			vkFreeMemory(g_Device, staging_memory, null);
+			//vkDestroyBuffer(g_Device, staging_buffer, null);
+			//vkFreeMemory(g_Device, staging_memory.memory, null);
 		}
 	}
 
-	void CreateVkImage(uint width, uint height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, out VkImage image, out VkDeviceMemory memory)
+	void CreateVkImage(uint width, uint height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, out VkImage image, out VkMappedMemoryRange memory)
 	{
 		VkImageCreateInfo image_info={
 			imageType: VK_IMAGE_TYPE_2D,
@@ -1419,28 +1425,7 @@ private:
 			sharingMode: VK_SHARING_MODE_EXCLUSIVE
 		};
 
-		vkCreateImage(g_Device, &image_info, null, &image);
-
-		VkMemoryRequirements memory_reqs;
-		vkGetImageMemoryRequirements(g_Device, image, &memory_reqs);
-
-		/+VkMemoryAllocateInfo alloc_info={
-			allocationSize: memory_reqs.size,
-			memoryTypeIndex: FindMemoryType(memory_reqs.memoryTypeBits, properties)
-		};
-		vkAllocateMemory(g_Device, &alloc_info, null, &memory);+/
-
-		AllocationCreateInfo alloc_info={
-			usage: properties,
-			type: memory_reqs.memoryTypeBits,
-			size: memory_reqs.size
-		};
-
-		Allocation alloc;
-		g_Allocator.Allocate(alloc_info, alloc);
-		memory=alloc.memory;
-
-		vkBindImageMemory(g_Device, image, memory, 0);
+		CreateAllocImage(g_Allocator, image_info, properties, image, &memory, null);
 	}
 
 	public VkCommandBuffer BeginSingleTimeCommands()
@@ -1685,8 +1670,8 @@ private:
 		index_count=indices.length;
 		test_out.writeln(index_count);
 
-		CreateVertexBuffer(g_Device, cast(VkDeviceSize)(Vertex.sizeof*vert_buffer.length), vert_buffer.ptr, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, _vertex_buffer, _vertex_buffer_memory);
-		CreateVertexBuffer(g_Device, cast(VkDeviceSize)(ushort.sizeof*indices.length), indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
+		CreateVertexBuffer(cast(VkDeviceSize)(Vertex.sizeof*vert_buffer.length), vert_buffer.ptr, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, _vertex_buffer, _vertex_buffer_memory);
+		CreateVertexBuffer(cast(VkDeviceSize)(ushort.sizeof*indices.length), indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
 
 		test_out.writeln("-- End create BSP, ", vert_buffer.length);
 	}

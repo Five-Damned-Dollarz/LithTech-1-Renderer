@@ -195,16 +195,21 @@ struct MainWorld
 
 	WorldData** world_models;
 	uint world_model_count;
+	int unknown_10; // dupe of world_model_count?
 
-	//int[2] unknown_9;
-
-	//void*[64] buf;
-
-	int unknown_10; // 0?
-	MainWorld* self; static assert(self.offsetof==172);
+	MainWorld* self; // unsure?
 	void* self_unknown;
 
-	static assert(this.sizeof>=168); // 204?
+	int[5] buf;
+
+	MainWorld* self2; // same as RenderContextInit.main_world
+
+	//int[2] unknown_9;
+	//void*[64] buf;
+
+	static assert(self.offsetof==172);
+	static assert(this.sizeof>=168);
+	static assert(this.sizeof==204);
 }
 
 struct UnknownList // WorldModelList?
