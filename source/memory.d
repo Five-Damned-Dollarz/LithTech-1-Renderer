@@ -11,13 +11,22 @@ immutable VkDeviceSize VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE = 256 * 1024 * 1024;
 // Default size of a block allocated as single VkDeviceMemory from a "small" heap.
 immutable VkDeviceSize VMA_DEFAULT_SMALL_HEAP_BLOCK_SIZE =  64 * 1024 * 1024;
 
+struct SubAllocation
+{
+	VkDeviceSize offset;
+	VkDeviceSize size;
+
+	bool _is_free=true;
+	@property bool is_free() const { return _is_free; }
+}
+
 class Allocation
 {
 	VkDeviceMemory memory;
 	VkDeviceSize size;
 	uint type_index;
 
-	VkMappedMemoryRange[] suballocs;
+	SubAllocation[] suballocs;
 
 	this(uint memory_type_index)
 	{
@@ -41,44 +50,42 @@ class Allocation
 
 	@property VkDeviceSize AvailableMemory() const
 	{
-		VkDeviceSize used;
+		VkDeviceSize free_mem=size;
+
+		/+foreach(alloc; suballocs)
+			if (alloc.is_free)
+				free_mem+=alloc.size;+/
 
 		foreach(alloc; suballocs)
-			used+=alloc.size;
+			free_mem-=alloc.size;
 
-		return size-used;
+		return free_mem;
 	}
 
 	VkResult Chunk(VkDeviceSize size, VkDeviceSize align_, out VkMappedMemoryRange alloc_out)
 	{
-		if (size<=AvailableMemory())
-		{
-			alloc_out.memory=memory;
-			alloc_out.size=size;
+		if (size>AvailableMemory())
+			return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
-			if (suballocs.length)
-				alloc_out.offset=VmaAlignUp(suballocs[$-1].offset+suballocs[$-1].size, align_);
+		SubAllocation sub_alloc;
+		sub_alloc._is_free=false;
+		sub_alloc.size=size;
+		if (suballocs.length)
+			sub_alloc.offset=VmaAlignUp(suballocs[$-1].offset+suballocs[$-1].size, align_);
 
-			suballocs~=alloc_out;
+		suballocs~=sub_alloc; // std.array: insertInPlace; std.container.array: insertBefore, insertAfter
 
-			debug { test_out.writeln(alloc_out); test_out.flush(); }
+		alloc_out.memory=memory;
+		alloc_out.offset=sub_alloc.offset;
+		alloc_out.size=sub_alloc.size;
 
-			return VK_SUCCESS;
-		}
+		debug { test_out.writeln(alloc_out); test_out.flush(); }
 
-		return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+		return VK_SUCCESS;
 	}
 }
 
 __gshared Allocator g_Allocator;
-
-struct AllocationCreateInfo
-{
-	VkMemoryPropertyFlags usage;
-	uint type;
-	VkDeviceSize size;
-	ulong align_;
-}
 
 class Allocator
 {
@@ -87,8 +94,8 @@ class Allocator
 
 	Allocation[][VK_MAX_MEMORY_TYPES] allocs;
 
-	//VkMappedMemoryRange[VkBuffer] m_BufferToMemoryMap;
-	//VkMappedMemoryRange[VkImage] m_ImageToMemoryMap;
+	VkMappedMemoryRange[VkBuffer] m_BufferToMemoryMap;
+	VkMappedMemoryRange[VkImage] m_ImageToMemoryMap;
 	//bool[VK_MAX_MEMORY_TYPES] m_HasEmptyAllocation;
 
 	this()
@@ -115,7 +122,12 @@ class Allocator
 		test_out.writeln("MemType: ", mem_type_index);
 		foreach(block; allocs[mem_type_index])
 		{
-			if (block.Chunk(memory_range.size, mem_reqs.alignment, memory_range)==VK_SUCCESS) // check if able to allocate
+			VkResult res=block.Chunk(memory_range.size, mem_reqs.alignment, memory_range);
+
+			test_out.writeln(__FUNCTION__, " - ", res);
+			test_out.flush();
+
+			if (res==VK_SUCCESS) // check if able to allocate
 			{
 				// allocate
 				return VK_SUCCESS;
@@ -125,7 +137,10 @@ class Allocator
 		// else create new block
 		Allocation new_block=new Allocation(mem_type_index);
 		allocs[mem_type_index]~=new_block;
-		new_block.Chunk(memory_range.size, mem_reqs.alignment, memory_range);
+
+		VkResult res=new_block.Chunk(memory_range.size, mem_reqs.alignment, memory_range);
+		test_out.writeln(__FUNCTION__, " - ", res);
+		test_out.flush();
 
 		return VK_SUCCESS;
 	}
@@ -166,7 +181,7 @@ uint FindMemoryType(ref const VkPhysicalDeviceMemoryProperties pMemoryProperties
 	}
 
 	// failed to find memory type
-	return -1;
+	return uint.max;
 }
 
 /+
@@ -224,8 +239,9 @@ void CreateAllocBuffer(
 
 	vkBindBufferMemory(g_Device, buffer, buf_alloc.memory, buf_alloc.offset);
 
-	if (pMemory !is null) *pMemory=buf_alloc;
-	// alloc.m_BufferToMemoryMap[buffer]=buf_alloc ?
+	if (pMemory!=null) *pMemory=buf_alloc;
+
+	alloc.m_BufferToMemoryMap[buffer]=buf_alloc;
 }
 
 void CreateAllocImage(
@@ -246,6 +262,7 @@ void CreateAllocImage(
 
 	vkBindImageMemory(g_Device, image, buf_alloc.memory, buf_alloc.offset);
 
-	if (pMemory !is null) *pMemory=buf_alloc;
-	// alloc.m_ImageToMemoryMap[image]=buf_alloc ?
+	if (pMemory!=null) *pMemory=buf_alloc;
+
+	alloc.m_ImageToMemoryMap[image]=buf_alloc;
 }

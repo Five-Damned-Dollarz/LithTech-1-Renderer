@@ -26,9 +26,9 @@ VkDebugUtilsMessengerEXT debug_messenger;
 
 extern(Windows)
 VkBool32 DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-                       VkDebugUtilsMessageTypeFlagsEXT type,
-                       const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-                       void* user_data) nothrow @nogc
+		VkDebugUtilsMessageTypeFlagsEXT type,
+		const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+		void* user_data) nothrow @nogc
 {
 	fprintf(test_out_c, "%s\n", callback_data.pMessage);
 	return VK_FALSE;
@@ -161,7 +161,8 @@ public:
 		vkDestroyBuffer(g_Device, _vertex_buffer, null);
 		vkFreeMemory(g_Device, _vertex_buffer_memory.memory, null);
 
-		// destroy framebuffers lol
+		foreach(ref buffer; _buffers)
+			vkDestroyFramebuffer(g_Device, buffer.framebuffer, null);
 
 		vkDestroyPipeline(g_Device, _pipeline, null);
 
@@ -210,260 +211,18 @@ public:
 		vkGetDeviceQueue(g_Device, GetQueueFamily().graphics_family, 0, &_graphics_queue);
 
 		CreateVkSwapchain(_format, _colour_space, _swapchain);
-
-		uint image_count;
-		vkGetSwapchainImagesKHR(g_Device, _swapchain, &image_count, null);
-		_images=new VkImage[image_count];
-		_buffers=new SwapchainBuffer[image_count];
-		vkGetSwapchainImagesKHR(g_Device, _swapchain, &image_count, _images.ptr);
-
-		test_out.writeln("Swapchain Images acquired.");
+		CreateVkImageViews(_swapchain, _images, _buffers);
 
 		//// Render Pass
-		void CreateRenderPass()
-		{
-			VkAttachmentDescription colour_attachment={
-				format: _format,
-				samples: VK_SAMPLE_COUNT_1_BIT,
-				loadOp: VK_ATTACHMENT_LOAD_OP_CLEAR,
-				storeOp: VK_ATTACHMENT_STORE_OP_STORE,
-				stencilLoadOp: VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-				stencilStoreOp: VK_ATTACHMENT_STORE_OP_DONT_CARE,
-				initialLayout: VK_IMAGE_LAYOUT_UNDEFINED,
-				finalLayout: VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-			};
-
-			VkAttachmentReference colour_attachment_ref={
-				attachment: 0,
-				layout: VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-			};
-
-			VkAttachmentDescription depth_attachment={
-				format: FindDepthFormat(),
-				samples: VK_SAMPLE_COUNT_1_BIT,
-				loadOp: VK_ATTACHMENT_LOAD_OP_CLEAR,
-				storeOp: VK_ATTACHMENT_STORE_OP_DONT_CARE,
-				stencilLoadOp: VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-				stencilStoreOp: VK_ATTACHMENT_STORE_OP_DONT_CARE,
-				initialLayout: VK_IMAGE_LAYOUT_UNDEFINED,
-				finalLayout: VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-			};
-
-			VkAttachmentReference depth_attachment_ref={
-				attachment: 1,
-				layout: VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-			};
-
-			VkSubpassDescription subpass={
-				pipelineBindPoint: VK_PIPELINE_BIND_POINT_GRAPHICS,
-				colorAttachmentCount: 1,
-				pColorAttachments: &colour_attachment_ref,
-				pDepthStencilAttachment: &depth_attachment_ref
-			};
-
-			VkSubpassDependency dependency={
-				srcSubpass: VK_SUBPASS_EXTERNAL,
-				dstSubpass: 0,
-				srcStageMask: VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-				srcAccessMask: 0,
-				dstStageMask: VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-				dstAccessMask: VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-			};
-
-			VkAttachmentDescription[] attachments=[ colour_attachment, depth_attachment ];
-
-			VkRenderPassCreateInfo render_pass_info={
-				attachmentCount: attachments.length,
-				pAttachments: attachments.ptr,
-				subpassCount: 1,
-				pSubpasses: &subpass,
-				dependencyCount: 1,
-				pDependencies: &dependency
-			};
-
-			vkCreateRenderPass(g_Device, &render_pass_info, null, &_render_pass);
-			test_out.writeln("Render Pass created.");
-		}
-
 		CreateRenderPass();
 
 		//// Graphics Pipeline
-
-		ubyte[] vertex_shader=Shader.ReadShader("vert.spv");
-		ubyte[] frag_shader=Shader.ReadShader("frag.spv");
-
-		vk_vertex_shader=Shader.CreateShaderModule(g_Device, vertex_shader);
-		vk_frag_shader=Shader.CreateShaderModule(g_Device, frag_shader);
-
-		VkPipelineShaderStageCreateInfo vert_stage_info={
-			pNext: null,
-			stage: VK_SHADER_STAGE_VERTEX_BIT,
-			module_: vk_vertex_shader,
-			pName: "main"
-		};
-
-		VkPipelineShaderStageCreateInfo frag_stage_info={
-			pNext: null,
-			stage: VK_SHADER_STAGE_FRAGMENT_BIT,
-			module_: vk_frag_shader,
-			pName: "main"
-		};
-
-		VkPipelineShaderStageCreateInfo[] shader_stages=[ vert_stage_info, frag_stage_info ];
-
-		auto binding_description=Vertex.GetBindingDescription();
-		auto attribute_descriptions=Vertex.GetAttributeDescriptions();
-
-		VkPipelineVertexInputStateCreateInfo vertex_input_info={
-			pNext: null,
-			vertexBindingDescriptionCount: 1,
-			pVertexBindingDescriptions: &binding_description,
-			vertexAttributeDescriptionCount: attribute_descriptions.length,
-			pVertexAttributeDescriptions: attribute_descriptions.ptr
-		};
-
-		VkPipelineInputAssemblyStateCreateInfo input_assembly_info={
-			pNext: null,
-			topology: VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, // VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
-			primitiveRestartEnable: VK_FALSE
-		};
-
-		VkViewport viewport={
-			x: 0f,
-			y: 0f,
-			width: _extents.width,
-			height:_extents.height,
-			minDepth: 0f,
-			maxDepth: 1f
-		};
-
-		VkRect2D scissor={
-			offset: { 0, 0 },
-			extent: _extents
-		};
-
-		VkPipelineViewportStateCreateInfo viewport_state_info={
-			viewportCount: 1,
-			pViewports: &viewport,
-			scissorCount: 1,
-			pScissors: &scissor
-		};
-
-		VkPipelineRasterizationStateCreateInfo rasterizer_info={
-			depthClampEnable: VK_FALSE,
-			rasterizerDiscardEnable: VK_FALSE,
-			polygonMode: VK_POLYGON_MODE_FILL,
-			lineWidth: 1f,
-			cullMode: VK_CULL_MODE_BACK_BIT,
-			frontFace: VK_FRONT_FACE_CLOCKWISE, // VK_FRONT_FACE_COUNTER_CLOCKWISE
-			depthBiasEnable: VK_FALSE,
-			depthBiasConstantFactor: 0f,
-			depthBiasClamp: 0f,
-			depthBiasSlopeFactor: 0f
-		};
-
-		VkPipelineMultisampleStateCreateInfo multisampling_info={
-			sampleShadingEnable: VK_FALSE,
-			rasterizationSamples: VK_SAMPLE_COUNT_1_BIT,
-			minSampleShading: 1f,
-			pSampleMask: null,
-			alphaToCoverageEnable: VK_FALSE,
-			alphaToOneEnable: VK_FALSE
-		};
-
-		VkPipelineColorBlendAttachmentState colour_blend_attachment={
-			colorWriteMask: VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-			blendEnable: VK_FALSE,
-			srcColorBlendFactor: VK_BLEND_FACTOR_ONE,
-			dstColorBlendFactor: VK_BLEND_FACTOR_ZERO,
-			colorBlendOp: VK_BLEND_OP_ADD,
-			srcAlphaBlendFactor: VK_BLEND_FACTOR_ONE,
-			dstAlphaBlendFactor: VK_BLEND_FACTOR_ZERO,
-			alphaBlendOp: VK_BLEND_OP_ADD
-		};
-
-		VkPipelineColorBlendStateCreateInfo colour_blend_info={
-			logicOpEnable: VK_FALSE,
-			logicOp: VK_LOGIC_OP_COPY,
-			attachmentCount: 1,
-			pAttachments: &colour_blend_attachment,
-			blendConstants: [ 0f, 0f, 0f, 0f ]
-		};
-
-		VkDynamicState[] dynamic_states=[ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_LINE_WIDTH ];
-
-		VkPipelineDynamicStateCreateInfo dynamic_state_info={
-			dynamicStateCount: 2,
-			pDynamicStates: dynamic_states.ptr
-		};
-
-		CreateDescriptorSetLayout();
-		CreateTextureDescriptorLayout();
-
-		VkDescriptorSetLayout[] pipeline_descriptor_layouts=[_descriptor_set_layout, _texture_descriptor_layout];
-		VkPipelineLayoutCreateInfo pipeline_layout_info={
-			setLayoutCount: pipeline_descriptor_layouts.length,
-			pSetLayouts: pipeline_descriptor_layouts.ptr,
-			pushConstantRangeCount: 0,
-			pPushConstantRanges: null
-		};
-
-		VkResult res=vkCreatePipelineLayout(g_Device, &pipeline_layout_info, null, &_pipeline_layout);
-		test_out.writeln("Pipeline Layout created. ", res);
-
-		/// Pipeline for real!
-
-		VkPipelineDepthStencilStateCreateInfo depth_stencil_info={
-			depthTestEnable: VK_TRUE,
-			depthWriteEnable: VK_TRUE,
-			depthCompareOp: VK_COMPARE_OP_LESS,
-			depthBoundsTestEnable: VK_FALSE,
-			minDepthBounds: 0f,
-			maxDepthBounds: 1f,
-			stencilTestEnable: VK_FALSE
-		};
-
-		VkGraphicsPipelineCreateInfo graphics_pipe_info={
-			stageCount: 2,
-			pStages: shader_stages.ptr,
-			pVertexInputState: &vertex_input_info,
-			pInputAssemblyState: &input_assembly_info,
-			pViewportState: &viewport_state_info,
-			pRasterizationState: &rasterizer_info,
-			pMultisampleState: &multisampling_info,
-			pColorBlendState: &colour_blend_info,
-			pDepthStencilState: &depth_stencil_info,
-			layout: _pipeline_layout,
-			renderPass: _render_pass,
-			basePipelineHandle: VK_NULL_ND_HANDLE,
-			basePipelineIndex: -1
-		};
-
-		vkCreateGraphicsPipelines(g_Device, VK_NULL_ND_HANDLE, 1, &graphics_pipe_info, null, &_pipeline);
-		test_out.writeln("Graphics Pipeline created.");
+		CreateGraphicsPipeline();
 
 		///
 		CreateDepthBuffer();
 
-		foreach(size_t i, ref buffer; _buffers)
-		{
-			buffer.image=_images[i];
-			buffer.view=CreateImageView(_images[i], _format, VK_IMAGE_ASPECT_COLOR_BIT);
-
-			VkImageView[] fb_attachments=[ buffer.view, _depth_image_view ];
-
-			VkFramebufferCreateInfo fb_create_info={
-				renderPass: _render_pass,
-				attachmentCount: fb_attachments.length,
-				pAttachments: fb_attachments.ptr,
-				width: _extents.width,
-				height: _extents.height,
-				layers: 1
-			};
-
-			vkCreateFramebuffer(g_Device, &fb_create_info, null, &buffer.framebuffer);
-			test_out.writeln(buffer.framebuffer);
-		}
+		CreateFramebuffers();
 
 		CreateVkCommandPool();
 
@@ -533,40 +292,7 @@ public:
 	override void RenderScene(SceneDesc* scene_desc) // vkCmd*
 	{
 		camera_pos=vec3(scene_desc.camera_position);
-		camera_view=quat(scene_desc.camera_rotation[3], -vec3(scene_desc.camera_rotation[0..3]));
-
-		/*auto cam_x = scene_desc.camera_rotation[0];
-		auto cam_y = scene_desc.camera_rotation[1];
-		auto cam_z = scene_desc.camera_rotation[2];
-		auto cam_w = scene_desc.camera_rotation[3];
-		auto x2_mag = 2.0 / (cam_w * cam_w + cam_x * cam_x + cam_y * cam_y + cam_z * cam_z);
-		auto z_mag = cam_z * x2_mag;
-		auto y_mag = cam_y * x2_mag;
-		auto w_x_mag = cam_w * cam_x * x2_mag;
-		x2_mag = cam_x * cam_x * x2_mag;
-		auto fVar7 = cam_x * y_mag + cam_w * z_mag;
-		auto fVar6 = cam_x * y_mag - cam_w * z_mag;
-		auto fVar1 = 1.0 - (y_mag * cam_y + cam_z * z_mag);
-		auto fVar11 = cam_x * z_mag + cam_w * y_mag;
-		cam_z = 1.0 - (x2_mag + cam_z * z_mag);
-		cam_x = cam_x * z_mag - cam_w * y_mag;
-		auto fVar10 = 1.0 - (x2_mag + y_mag * cam_y);
-		auto fVar12 = cam_y * z_mag - w_x_mag;
-		w_x_mag = cam_y * z_mag + w_x_mag;
-
-		mat3 param_1;
-
-		param_1[0][0] = fVar6;
-		param_1[0][1] = cam_z;
-		param_1[0][2] = w_x_mag;
-
-		param_1[1][0] = fVar1;
-		param_1[1][1] = fVar7;
-		param_1[1][2] = cam_x;
-
-		param_1[2][0] = fVar11;
-		param_1[2][1] = fVar12;
-		param_1[2][2] = fVar10;*/
+		camera_view=quat(scene_desc.camera_rotation[3], vec3(scene_desc.camera_rotation[0..3]));
 
 		rot+=scene_desc.frame_delta;
 
@@ -703,7 +429,23 @@ LAB_0004814b:
 	override void SwapBuffers() // vkQueuePresent
 	{
 		uint image_index;
-		vkAcquireNextImageKHR(g_Device, _swapchain, uint.max, _is_image_available, VK_NULL_ND_HANDLE, &image_index);
+		VkResult res=vkAcquireNextImageKHR(g_Device, _swapchain, uint.max, _is_image_available, VK_NULL_ND_HANDLE, &image_index);
+
+		if (res==VK_ERROR_SURFACE_LOST_KHR || res==VK_SUBOPTIMAL_KHR)
+		{
+			test_out.writeln("Trying to recreate surface.");
+
+			vkDeviceWaitIdle(g_Device);
+
+			DestroyVkSwapchain();
+			//
+			CreateVkSwapchain(_format, _colour_space, _swapchain);
+			CreateVkImageViews(_swapchain, _images, _buffers);
+			CreateRenderPass();
+			CreateGraphicsPipeline();
+			CreateFramebuffers();
+			CreateCommandBuffers();
+		}
 
 		VkSemaphore[] wait_semaphores=[ _is_image_available ];
 		VkSemaphore[] signal_semaphores=[ _is_render_finished ];
@@ -750,10 +492,21 @@ LAB_0004814b:
 
 					size_t index_start=0;
 
+					RenderTexture last_texture=null;
+
 					foreach(i, polygon; bsp.polygons[0..bsp.polygon_count])
 					{
-						VkDescriptorSet texture_image=(cast(RenderTexture)polygon.surface.shared_texture.render_data).texture_descriptor;
-						vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 1, 1, &texture_image, 0, null);
+						import Model: SurfaceFlags;
+						if (polygon.surface.flags & SurfaceFlags.Invisible)
+							continue;
+
+						RenderTexture this_texture=cast(RenderTexture)polygon.surface.shared_texture.render_data;
+						if (last_texture !is this_texture)
+						{
+							last_texture=this_texture;
+							VkDescriptorSet texture_image=this_texture.texture_descriptor;
+							vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 1, 1, &texture_image, 0, null);
+						}
 
 						int vert_count=(polygon.DiskVerts().length-2)*3;
 						vkCmdDrawIndexed(buffer, vert_count, 1, index_start, 0, 0);
@@ -792,8 +545,21 @@ LAB_0004814b:
 			pWaitSemaphores: signal_semaphores.ptr
 		};
 
-		vkQueuePresentKHR(_graphics_queue, &present_info);
+		res=vkQueuePresentKHR(_graphics_queue, &present_info);
 		// recover lost screen if necessary?
+		if (res==VK_ERROR_SURFACE_LOST_KHR || res==VK_SUBOPTIMAL_KHR)
+		{
+			test_out.writeln("Trying to recreate surface.");
+			vkDeviceWaitIdle(g_Device);
+			DestroyVkSwapchain();
+			//
+			CreateVkSwapchain(_format, _colour_space, _swapchain);
+			CreateVkImageViews(_swapchain, _images, _buffers);
+			CreateRenderPass();
+			CreateGraphicsPipeline();
+			CreateFramebuffers();
+			CreateCommandBuffers();
+		}
 
 		vkQueueWaitIdle(_graphics_queue);
 	}
@@ -1062,6 +828,38 @@ private:
 		return vkCreateSwapchainKHR(g_Device, &create_info, null, &swap_chain);
 	}
 
+	void CreateVkImageViews(ref const VkSwapchainKHR swapchain, out VkImage[] images, out SwapchainBuffer[] buffers)
+	{
+		uint image_count;
+		vkGetSwapchainImagesKHR(g_Device, swapchain, &image_count, null);
+		images=new VkImage[image_count];
+		buffers=new SwapchainBuffer[image_count];
+		vkGetSwapchainImagesKHR(g_Device, swapchain, &image_count, images.ptr);
+
+		test_out.writeln("Swapchain Images acquired.");
+	}
+
+	void DestroyVkSwapchain()
+	{
+		foreach(i; 0.._buffers.length)
+		{
+			vkDestroyFramebuffer(g_Device, _buffers[i].framebuffer, null);
+		}
+
+		vkFreeCommandBuffers(g_Device, _command_pool, _command_buffers.length, _command_buffers.ptr);
+
+		vkDestroyPipeline(g_Device, _pipeline, null);
+		//vkDestroyPipelineLayout(g_Device, _pipeline_layout, null);
+		vkDestroyRenderPass(g_Device, _render_pass, null);
+
+		foreach(i; 0.._buffers.length)
+		{
+			vkDestroyImageView(g_Device, _buffers[i].view, null);
+		}
+
+		vkDestroySwapchainKHR(g_Device, _swapchain, null);
+	}
+
 	void CreateVkViews()
 	{
 		foreach(size_t i, ref image; _images)
@@ -1084,6 +882,247 @@ private:
 			_buffers[i].image=image;
 			//SetImageLayout(_initial_command_buffer, image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 			vkCreateImageView(g_Device, &create_info, null, &_buffers[i].view);
+		}
+	}
+
+	void CreateRenderPass()
+	{
+		VkAttachmentDescription colour_attachment={
+			format: _format,
+			samples: VK_SAMPLE_COUNT_1_BIT,
+			loadOp: VK_ATTACHMENT_LOAD_OP_CLEAR,
+			storeOp: VK_ATTACHMENT_STORE_OP_STORE,
+			stencilLoadOp: VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			stencilStoreOp: VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			initialLayout: VK_IMAGE_LAYOUT_UNDEFINED,
+			finalLayout: VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+		};
+
+		VkAttachmentReference colour_attachment_ref={
+			attachment: 0,
+			layout: VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+		};
+
+		VkAttachmentDescription depth_attachment={
+			format: FindDepthFormat(),
+			samples: VK_SAMPLE_COUNT_1_BIT,
+			loadOp: VK_ATTACHMENT_LOAD_OP_CLEAR,
+			storeOp: VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			stencilLoadOp: VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			stencilStoreOp: VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			initialLayout: VK_IMAGE_LAYOUT_UNDEFINED,
+			finalLayout: VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+		};
+
+		VkAttachmentReference depth_attachment_ref={
+			attachment: 1,
+			layout: VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+		};
+
+		VkSubpassDescription subpass={
+			pipelineBindPoint: VK_PIPELINE_BIND_POINT_GRAPHICS,
+			colorAttachmentCount: 1,
+			pColorAttachments: &colour_attachment_ref,
+			pDepthStencilAttachment: &depth_attachment_ref
+		};
+
+		VkSubpassDependency dependency={
+			srcSubpass: VK_SUBPASS_EXTERNAL,
+			dstSubpass: 0,
+			srcStageMask: VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			srcAccessMask: 0,
+			dstStageMask: VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+			dstAccessMask: VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+		};
+
+		VkAttachmentDescription[] attachments=[ colour_attachment, depth_attachment ];
+		VkRenderPassCreateInfo render_pass_info={
+			attachmentCount: attachments.length,
+			pAttachments: attachments.ptr,
+			subpassCount: 1,
+			pSubpasses: &subpass,
+			dependencyCount: 1,
+			pDependencies: &dependency
+		};
+
+		vkCreateRenderPass(g_Device, &render_pass_info, null, &_render_pass);
+
+		test_out.writeln("Render Pass created.");
+	}
+
+	void CreateGraphicsPipeline()
+	{
+		ubyte[] vertex_shader=Shader.ReadShader("vert.spv");
+		ubyte[] frag_shader=Shader.ReadShader("frag.spv");
+
+		vk_vertex_shader=Shader.CreateShaderModule(g_Device, vertex_shader);
+		vk_frag_shader=Shader.CreateShaderModule(g_Device, frag_shader);
+
+		VkPipelineShaderStageCreateInfo vert_stage_info={
+			pNext: null,
+			stage: VK_SHADER_STAGE_VERTEX_BIT,
+			module_: vk_vertex_shader,
+			pName: "main"
+		};
+
+		VkPipelineShaderStageCreateInfo frag_stage_info={
+			pNext: null,
+			stage: VK_SHADER_STAGE_FRAGMENT_BIT,
+			module_: vk_frag_shader,
+			pName: "main"
+		};
+
+		VkPipelineShaderStageCreateInfo[] shader_stages=[ vert_stage_info, frag_stage_info ];
+
+		auto binding_description=Vertex.GetBindingDescription();
+		auto attribute_descriptions=Vertex.GetAttributeDescriptions();
+
+		VkPipelineVertexInputStateCreateInfo vertex_input_info={
+			pNext: null,
+			vertexBindingDescriptionCount: 1,
+			pVertexBindingDescriptions: &binding_description,
+			vertexAttributeDescriptionCount: attribute_descriptions.length,
+			pVertexAttributeDescriptions: attribute_descriptions.ptr
+		};
+
+		VkPipelineInputAssemblyStateCreateInfo input_assembly_info={
+			pNext: null,
+			topology: VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, // VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN,
+			primitiveRestartEnable: VK_FALSE
+		};
+
+		VkViewport viewport={
+			x: 0f,
+			y: 0f,
+			width: _extents.width,
+			height:_extents.height,
+			minDepth: 0f,
+			maxDepth: 1f
+		};
+
+		VkRect2D scissor={
+			offset: { 0, 0 },
+			extent: _extents
+		};
+
+		VkPipelineViewportStateCreateInfo viewport_state_info={
+			viewportCount: 1,
+			pViewports: &viewport,
+			scissorCount: 1,
+			pScissors: &scissor
+		};
+
+		VkPipelineRasterizationStateCreateInfo rasterizer_info={
+			depthClampEnable: VK_FALSE,
+			rasterizerDiscardEnable: VK_FALSE,
+			polygonMode: VK_POLYGON_MODE_FILL,
+			lineWidth: 1f,
+			cullMode: VK_CULL_MODE_BACK_BIT,
+			frontFace: VK_FRONT_FACE_CLOCKWISE, // VK_FRONT_FACE_COUNTER_CLOCKWISE
+			depthBiasEnable: VK_FALSE,
+			depthBiasConstantFactor: 0f,
+			depthBiasClamp: 0f,
+			depthBiasSlopeFactor: 0f
+		};
+
+		VkPipelineMultisampleStateCreateInfo multisampling_info={
+			sampleShadingEnable: VK_FALSE,
+			rasterizationSamples: VK_SAMPLE_COUNT_1_BIT,
+			minSampleShading: 1f,
+			pSampleMask: null,
+			alphaToCoverageEnable: VK_FALSE,
+			alphaToOneEnable: VK_FALSE
+		};
+
+		VkPipelineColorBlendAttachmentState colour_blend_attachment={
+			colorWriteMask: VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+			blendEnable: VK_FALSE,
+			srcColorBlendFactor: VK_BLEND_FACTOR_ONE,
+			dstColorBlendFactor: VK_BLEND_FACTOR_ZERO,
+			colorBlendOp: VK_BLEND_OP_ADD,
+			srcAlphaBlendFactor: VK_BLEND_FACTOR_ONE,
+			dstAlphaBlendFactor: VK_BLEND_FACTOR_ZERO,
+			alphaBlendOp: VK_BLEND_OP_ADD
+		};
+
+		VkPipelineColorBlendStateCreateInfo colour_blend_info={
+			logicOpEnable: VK_FALSE,
+			logicOp: VK_LOGIC_OP_COPY,
+			attachmentCount: 1,
+			pAttachments: &colour_blend_attachment,
+			blendConstants: [ 0f, 0f, 0f, 0f ]
+		};
+
+		VkDynamicState[] dynamic_states=[ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_LINE_WIDTH ];
+
+		VkPipelineDynamicStateCreateInfo dynamic_state_info={
+			dynamicStateCount: 2,
+			pDynamicStates: dynamic_states.ptr
+		};
+
+		CreateDescriptorSetLayout();
+		CreateTextureDescriptorLayout();
+
+		VkDescriptorSetLayout[] pipeline_descriptor_layouts=[_descriptor_set_layout, _texture_descriptor_layout];
+		VkPipelineLayoutCreateInfo pipeline_layout_info={
+			setLayoutCount: pipeline_descriptor_layouts.length,
+			pSetLayouts: pipeline_descriptor_layouts.ptr,
+			pushConstantRangeCount: 0,
+			pPushConstantRanges: null
+		};
+
+		VkResult res=vkCreatePipelineLayout(g_Device, &pipeline_layout_info, null, &_pipeline_layout);
+		test_out.writeln("Pipeline Layout created. ", res);
+
+		/// Pipeline for real!
+
+		VkPipelineDepthStencilStateCreateInfo depth_stencil_info={
+			depthTestEnable: VK_TRUE,
+			depthWriteEnable: VK_TRUE,
+			depthCompareOp: VK_COMPARE_OP_LESS,
+			depthBoundsTestEnable: VK_FALSE,
+			minDepthBounds: 0f,
+			maxDepthBounds: 1f,
+			stencilTestEnable: VK_FALSE
+		};
+
+		VkGraphicsPipelineCreateInfo graphics_pipe_info={
+			stageCount: 2,
+			pStages: shader_stages.ptr,
+			pVertexInputState: &vertex_input_info,
+			pInputAssemblyState: &input_assembly_info,
+			pViewportState: &viewport_state_info,
+			pRasterizationState: &rasterizer_info,
+			pMultisampleState: &multisampling_info,
+			pColorBlendState: &colour_blend_info,
+			pDepthStencilState: &depth_stencil_info,
+			layout: _pipeline_layout,
+			renderPass: _render_pass,
+			basePipelineHandle: VK_NULL_ND_HANDLE,
+			basePipelineIndex: -1
+		};
+
+		vkCreateGraphicsPipelines(g_Device, VK_NULL_ND_HANDLE, 1, &graphics_pipe_info, null, &_pipeline);
+		test_out.writeln("Graphics Pipeline created.");
+	}
+
+	void CreateFramebuffers()
+	{
+		foreach(size_t i, ref buffer; _buffers)
+		{
+			buffer.image=_images[i];
+			buffer.view=CreateImageView(_images[i], _format, VK_IMAGE_ASPECT_COLOR_BIT);
+			VkImageView[] fb_attachments=[ buffer.view, _depth_image_view ];
+			VkFramebufferCreateInfo fb_create_info={
+				renderPass: _render_pass,
+				attachmentCount: fb_attachments.length,
+				pAttachments: fb_attachments.ptr,
+				width: _extents.width,
+				height: _extents.height,
+				layers: 1
+			};
+			vkCreateFramebuffer(g_Device, &fb_create_info, null, &buffer.framebuffer);
+			test_out.writeln(buffer.framebuffer);
 		}
 	}
 
@@ -1205,8 +1244,72 @@ private:
 		ubo.model=mat4.identity.translate(0f, 0f, 0f).transposed();
 		// pitch = mouse x; roll = mouse y
 		// x = v; y = h; z = roll
-		ubo.view=ubo.view.identity.translate(-camera_pos.x, -camera_pos.y, -camera_pos.z).rotatex(camera_view.roll()-1.57).rotatey(camera_view.pitch()-1.57).rotatez(camera_view.yaw()-1.57).transposed(); //mat4.look_at(vec3(2f, 2f, 2f), vec3(0f, 0f, 0f), vec3(0f, 0f, 1f)).transposed();
-		mat4 temp_cam=camera_view.to_matrix!(4, 4);
+		ubo.view=ubo.view.identity();
+
+		void RotTransCam2(vec3 pos, quat rot, ref mat4 mat4_out)
+		{
+			float cam_rot_x = rot.x;
+			float cam_rot_y = rot.y;
+			float cam_rot_z = rot.z;
+			float cam_rot_w = rot.w;
+			float x2_mag = 2.0 / (cam_rot_w * cam_rot_w +
+										 cam_rot_x * cam_rot_x + cam_rot_y * cam_rot_y + cam_rot_z * cam_rot_z);
+			float z_mag = cam_rot_z * x2_mag;
+			float y_mag = cam_rot_y * x2_mag;
+			float w_x_mag = cam_rot_w * cam_rot_x * x2_mag;
+			x2_mag = cam_rot_x * cam_rot_x * x2_mag;
+			float fVar7 = cam_rot_x * y_mag + cam_rot_w * z_mag;
+			float fVar6 = cam_rot_x * y_mag - cam_rot_w * z_mag;
+			float fVar1 = 1.0 - (y_mag * cam_rot_y + cam_rot_z * z_mag);
+			float fVar11 = cam_rot_x * z_mag + cam_rot_w * y_mag;
+			cam_rot_z = 1.0 - (x2_mag + cam_rot_z * z_mag);
+			cam_rot_x = cam_rot_x * z_mag - cam_rot_w * y_mag;
+			float fVar10 = 1.0 - (x2_mag + y_mag * cam_rot_y);
+			float fVar12 = cam_rot_y * z_mag - w_x_mag;
+			w_x_mag = cam_rot_y * z_mag + w_x_mag;
+
+			float cam_pos_x = -pos.x;
+			float cam_pos_y = -pos.y;
+			float cam_pos_z = -pos.z;
+			float fVar8 = fVar1;
+			float fVar5 = fVar6;
+			float fVar9 = fVar11;
+			float fVar3 = fVar7;
+			float fVar2 = cam_rot_x;
+			float fVar4 = cam_rot_z;
+			z_mag = fVar12;
+			y_mag = w_x_mag;
+			x2_mag = fVar10;
+			cam_rot_w = fVar1 * cam_pos_x + fVar7 * cam_pos_y + cam_rot_x * cam_pos_z + 0.0;
+			fVar1 = w_x_mag * cam_pos_z + fVar6 * cam_pos_x + cam_rot_z * cam_pos_y + 0.0;
+			fVar6 = fVar10 * cam_pos_z + fVar11 * cam_pos_x + fVar12 * cam_pos_y + 0.0;
+			cam_rot_x = 1f;
+			cam_rot_y = -1f;
+			cam_rot_z = -1f;
+			mat4_out[0][0] = cam_rot_x * fVar8;
+			mat4_out[1][0] = cam_rot_y * fVar5;
+			mat4_out[2][0] = cam_rot_z * fVar9;
+			mat4_out[3][0] = 0f;
+			mat4_out[0][1] = cam_rot_x * fVar3;
+			mat4_out[1][1] = cam_rot_y * fVar4;
+			mat4_out[2][1] = cam_rot_z * z_mag + fVar3 * 0.0 + fVar4 * 0.0 + 0.0;
+			mat4_out[3][1] = 0f;
+			mat4_out[0][2] = cam_rot_x * fVar2;
+			mat4_out[1][2] = cam_rot_y * y_mag;
+			mat4_out[2][2] = cam_rot_z * x2_mag;
+			mat4_out[3][2] = 0f;
+			mat4_out[0][3] = cam_rot_x * cam_rot_w;
+			mat4_out[1][3] = cam_rot_y * fVar1;
+			mat4_out[2][3] = cam_rot_z * fVar6;
+			mat4_out[3][3] = 1f;
+		}
+
+		mat4 test_camera_out;
+		test_camera_out=mat4.identity();
+		RotTransCam2(camera_pos, camera_view, test_camera_out);
+		test_camera_out.transpose();
+
+		ubo.view=test_camera_out;
 
 		ubo.proj=mat4.perspective(_extents.width, _extents.height, 45f, 0.1f, 15000f).transposed();
 
@@ -1692,6 +1795,9 @@ private:
 		{
 			vert_count=vert_buffer.length;
 
+			import Model: SurfaceFlags;
+			if (polygon.surface.flags & SurfaceFlags.Invisible)
+				continue;
 			//bind polygon.surface.shared_texture.render_data.image_view
 
 			foreach(j, vertex; polygon.DiskVerts())

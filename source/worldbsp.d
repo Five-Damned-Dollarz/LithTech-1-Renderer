@@ -213,7 +213,7 @@ struct MainWorld
 	static assert(this.sizeof==204);
 }
 
-struct UnknownList // WorldModelList?
+struct UnknownList // WorldModelList? Something Node related?
 {
 	UnknownList* prev;
 	UnknownList* next;
@@ -229,56 +229,86 @@ struct UnknownObject // WorldModel -- This is the base Object; Model, WorldModel
 {
 	DLink link;
 	DLink link_unknown; // maybe not even a link?
-	UnknownList* list; // ?
+	Buffer* list; // unknown
 
-	Buffer* unknown_1;
+	void*[2] unknown_1; // suspect object type-calc'd functors from engine
 
-	Buffer* unknown_2; // attachment?
-	UnknownObject* root; // UnknownList? static assert(root.offsetof==36)
+	Buffer* root; // UnknownList? static assert(root.offsetof==36)
 
 	ModelFlags flags;
+	uint user_flags;
 
-	void* unknown_3a;
 	ubyte[4] colour;
-	Buffer* attachments;
 
-	vec3 world_translation;
+	Buffer* attachments;
+	vec3 position;
 	float[4] rotation;
 	vec3 scale;
 
-	short[5] unknown_5;
+	float unknown_5;
+	short[2] unknown_6;
+	short ffff; // unknown, is set to FFFF on creation, possible bitmask for what's updated
 	short[2] frame_code; // [108] is set to 0 on frame start
 
-align(2):
-	ObjectType type_id; // at least this much must be in the base class!
-	// 1 align byte
-	float unknown_7;
-	vec3 unknown_vec_1;
-	float[6] unknown_8;
-	int unknown_9;
-	int unknown_10;
+	ObjectType type_id;
+	ubyte block_priority;
 
-	vec3 bounds_min_relative; //mat4 mat4_unknown_1; // ?
+	float unknown_7;
+	vec3 velocity;
+	vec3 acceleration;
+	float friction_coeff;
+	float mass;
+	float force_ignore_limit;
+	int unknown_8;
+	int unknown_9;
+
+	vec3 bounds_min_relative;
 	vec3 bounds_max_relative;
 	vec3 dimensions;
 
-	short unknown_11;
-	void*[25] buf1;
+	void*[5] buf1;
 
+	Buffer* self1;
+
+	uint state;
+
+	void*[4] buf2;
+	Buffer*[3] self2;
+	void*[7] buf3;
+	Buffer* self3;
+	uint client_user_flags;
+	void* buf4;
+	Buffer* class_;
+
+	// probably where "base" Object ends and derived data begins?
+align(2):
+	short buf4a;
 	WorldData* bsp;
 
-	mat4 mat4_unknown_2;
-	mat4 mat4_unknown_3;
+	void*[4] buf5;
+	short buf6;
+
+	Buffer* model_nodes;
+
+	//mat4 mat4_unknown_2;
+	//mat4 mat4_unknown_3;
 
 	//Buffer[4] buf2;
 
 	//pragma(msg, this.sizeof);
 	static assert(this.sizeof>=108);
 	static assert(flags.offsetof==40);
+	static assert(colour.offsetof==48); // if colour[4] (alpha) is not 0xFF then add to transparent draw list instead of solid
 	static assert(attachments.offsetof==52);
+	//static assert(???.offsetof==84); for type_id=ParticleSystem, unsure what these values are for
 	static assert(type_id.offsetof==110);
-	//static assert(xxx.offsetof==124); unsure what this is yet, but it's necessary for visibility?
-	static assert(bsp.offsetof==298);
+	//static assert(???.offsetof==124); unsure what this is yet, but it's necessary for visibility?
+	static assert(client_user_flags.offsetof==284);
+	static assert(class_.offsetof==292);
+	static assert(bsp.offsetof==298); // for type_id=WorldModel
+	//static assert(light_radius.offsetof==296); for type_id=Light, possibly padded to 298?
+	//static assert(???.offsetof==316); polygon pointer?
+	static assert(model_nodes.offsetof==320); // for type_id=Model, if 0 skip adding to draw list; possible pointer to model nodes?
 	// possibly 300 byte stride for one of the object types?
 	// 428-432 stride?
 }

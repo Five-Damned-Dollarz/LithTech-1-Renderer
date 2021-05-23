@@ -503,14 +503,207 @@ int IsInOptimized2D()
 int RenderScene(SceneDesc* scene_desc)
 	in(scene_desc!=null)
 {
-	/+test();
+	test();
 
 	WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
-	test_out.writeln(*bsp);+/
+	test_out.writeln(*bsp);
+
+	Node* root_node=bsp.node_root;
+
+	// display all world model lists
+	/+foreach(ref model; bsp.world_models[0..bsp.world_models_count])
+	{
+		test_out.writeln(model);
+		auto cur=model.prev;
+		while(cur!=&model)
+		{
+			//test_out.writeln(*cur);
+			test_out.writeln(*cur.data);
+			cur=cur.prev;
+		}
+	}+/
+
+	void ProcessNode(Node* node)
+	{
+		test_out.writeln("//////////");
+		test_out.writeln(*node);
+		test_out.writeln("---");
+		test_out.flush();
+
+		UnknownList* obj_cur;
+		if (node.objects==null) goto SKIP;
+
+		import Codes;
+
+		LTResult GetNextModelNode(UnknownObject* obj, uint node, out uint next)
+		{
+			if ((obj != null) && (obj.type_id == 1))
+			{
+				uint node_count=*cast(uint*)((cast(uint)obj.model_nodes) + 0x84);
+				test_out.writeln(obj, " node_count: ", node_count);
+
+				if (node_count <= node + 1u) // model_nodes + 0x84 = node_count
+				{
+					return LTResult.DE_FINISHED;
+				}
+				next = node + 1u;
+				return LTResult.LT_OK;
+			}
+
+			return LTResult.DE_INVALIDPARAMS;
+		}
+
+		/// doesn't work for some reason
+		LTResult GetModelNodeName(UnknownObject* obj, uint node, char* name, int max_length)
+		{
+		  if ((node == 0) || (max_length == 0) || (obj == null) || (obj.type_id != 1))
+		  {
+		    return LTResult.DE_ERROR;
+		  }
+		  else
+		  {
+		  	uint node_count=*cast(uint*)((cast(uint)obj.model_nodes) + 0x84);
+		    if (node < node_count)
+		    {
+		    	char** node_name_list=*cast(char***)(cast(uint)obj.model_nodes + 0x80);
+		    	test_out.writeln(node_name_list[0..node_count]);
+		    	import std.string: fromStringz;
+		    	test_out.writeln(node_name_list[node][0..32]);
+		      strncpy(name, node_name_list[node], max_length - 1);
+		      return LTResult.LT_OK;
+		    }
+		  }
+
+		  return LTResult.DE_INVALIDPARAMS;
+		}
+
+		int GetModelAnimation(UnknownObject* obj)
+		{
+		  if ((obj != null) && (obj.type_id == 1))
+		  {
+		  	test_out.writeln(*cast(int*)(cast(int)obj + 348));
+		  	test_out.writeln(*cast(int*)(cast(int)obj.model_nodes + 0xf4));
+		  	test_out.writeln(*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4));
+		  	test_out.writeln((*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4)) / 0x74);
+
+		    return (*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4)) / 0x74;
+		  }
+		  return -1;
+		}
+
+		bool GetModelLooping(UnknownObject* obj)
+		{
+		  if ((obj != null) && (obj.type_id == 1)) {
+		    return cast(bool)(*cast(int*)(cast(int)obj + 328) >> 1 & 1);
+		  }
+		  return 0;
+		}
+
+		obj_cur=node.objects.prev;
+		while(obj_cur!=node.objects)
+		{
+			test_out.writeln(*obj_cur);
+
+			auto object_inst=obj_cur.data;
+			test_out.writeln(*object_inst);
+
+			import std.string: fromStringz;
+			import Model: ObjectType;
+
+			uint next_node;
+			test_out.writeln(GetNextModelNode(object_inst, 0, next_node));
+			//char[64] test_name;
+			//test_out.writeln(GetModelNodeName(object_inst, 1, test_name.ptr, 64));
+
+			test_out.writeln("GetModelAnimation: ", GetModelAnimation(object_inst));
+			test_out.writeln("GetModelLooping: ", GetModelLooping(object_inst));
+
+			/+if (object_inst.type_id==ObjectType.Model && object_inst.class_!=null)
+			{
+				test_out.writeln(*object_inst.class_);
+				//test_out.flush();
+
+				import Object.BaseObject;
+				test_out.writeln(*(cast(ObjectCreateStruct*)object_inst.list));
+				test_out.writeln(*(cast(ObjectClass*)object_inst.class_));
+				test_out.writeln(*(cast(ObjectClass*)object_inst.class_).create_struct);
+
+				struct ObjectClass
+				{
+				align(2):
+					Buffer*[5] buf1;
+					ushort name_length;
+					char[64] name; // in place char array
+
+					static assert(name_length.offsetof==0x14);
+					static assert(name.offsetof==0x16);
+				}
+
+				if (object_inst.class_.buf[3]!=null)
+				{
+					ObjectClass* obj_class=cast(ObjectClass*)object_inst.class_.buf[3];
+					test_out.writeln(*obj_class);
+					test_out.writeln((cast(char*)(&obj_class.name))[0..obj_class.name_length]);
+					//test_out.flush();
+				}
+
+				if (object_inst.class_.buf[12]!=null)
+				{
+					ObjectClass* model_filename=cast(ObjectClass*)((cast(uint)object_inst.class_)+0x30);
+					//test_out.writeln((cast(char*)(&model_filename.name))[0..model_filename.name_length]);
+					test_out.writeln(*model_filename);
+				}
+
+				if (object_inst.class_.buf[13]!=null)
+				{
+					ObjectClass* model_filename=cast(ObjectClass*)((cast(uint)object_inst.class_)+0x34);
+					test_out.writeln(*model_filename);
+					//test_out.writeln((cast(char*)(&model_filename.name))[0..model_filename.name_length]);
+				}
+			}
+
+			if (object_inst.type_id==ObjectType.Model && object_inst.model_nodes!=null)
+			{
+				test_out.writeln(object_inst.model_nodes[0..2]);
+
+				char** node_name_list=cast(char**)object_inst.model_nodes[1].buf[0];
+				test_out.writeln(object_inst.model_nodes[1].buf[1]);
+				test_out.writeln(node_name_list[0..32]);
+			}
+
+			test_out.flush();+/
+
+			obj_cur=obj_cur.prev;
+		}
+
+		SKIP:
+		if (node.next[0].flags & 8)
+			ProcessNode(node.next[0]);
+		if (node.next[1].flags & 8)
+			ProcessNode(node.next[1]);
+	}
+
+	//ProcessNode(root_node);
 
 	if (_renderer.is_init!=0)
 	{
 		test_out.writeln(*scene_desc);
+
+		{
+			if (scene_desc.obj_count>0)
+			{
+				void*[] obj_list=scene_desc.obj_list_head[0..scene_desc.obj_count];
+
+				test_out.writeln(obj_list);
+
+				foreach(obj; obj_list)
+				{
+					import Polygrid;
+					test_out.writeln(*(cast(Polygrid*)obj));
+				}
+			}
+		}
+
 		test_out.flush();
 
 		_renderer_inst.RenderScene(scene_desc);
