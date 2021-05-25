@@ -124,15 +124,21 @@ enum LTPixelFormat : int
 	RGB_555,
 }
 
+enum BlitRequestFlags : uint
+{
+	ColourKey=0x1
+}
+
 struct BlitRequest
 {
 	ImageSurface* surface_ptr;
-	int unknown_1;
-	int unknown_2;
-	void* source_ptr;
-	void* dest_ptr;
+	BlitRequestFlags flags;
+	ushort colour_key;
+	private ushort buf;
+	Rect* source_rect;
+	Rect* dest_rect;
 
-	Buffer* buf;
+	void* unknown;
 }
 
 // borrowing DLink and DList from Blood 2's dlink.h
@@ -164,7 +170,7 @@ enum ClearFlags : uint
 extern(C)
 struct RenderDLL
 {
-	UnknownObject* /+ DObject* +/ function(void* /+ DObject* +/, void* /+ *(DObject + 0x34, array; has 0x24 stride) +/) AttachmentSomething; // called by ProcessAttachment
+	/+ DObject* +/ UnknownObject* function(UnknownObject* /+ DObject* +/, Attachment*) AttachmentSomething; // called by ProcessAttachment
 	TextureData* function(SharedTexture*, void* /+ out bool? +/) GetTexture;
 	void function(SharedTexture*) FreeTexture;
 	void function() UnknownFunc_1;
@@ -212,8 +218,8 @@ struct RenderDLL
 	void* function(ImageSurface*) LockSurface;
 	void function(ImageSurface*) UnlockSurface;
 	/+ --- These probably also take ImageSurface* +/
-	int function(void*, uint) OptimizeSurface;
-	void function(void*) UnoptimizeSurface;
+	int function(void* /+ ImageSurface*? +/, uint) OptimizeSurface;
+	void function(void* /+ ImageSurface*? +/) UnoptimizeSurface;
 	int function(int, int, int, int, void**, int*) LockScreen;
 	void function() UnlockScreen;
 	/+ --- +/

@@ -2,11 +2,14 @@ module Codes;
 
 enum LTResult
 {
-	LT_OK=0, // No problem!
+	Ok=0, // No problem!
+	LT_OK=0,
 	DE_OK=0,
-	LT_ERROR=1, // Uh oh..
+	Error=1, // Uh oh..
+	LT_ERROR=1,
 	DE_ERROR=1,
-	DE_FINISHED=2, // Done with operation.
+	Finished=2, // Done with operation.
+	DE_FINISHED=2,
 
 	// Video status.
 	VIDEO_STARTED=10,
@@ -34,8 +37,8 @@ enum LTResult
 	DE_USERCANCELED=40, // User canceled connect dialog.
 	DE_MISSINGWORLDFILE=41, // Missing world file from server.
 	DE_INVALIDWORLDFILE=42, // Invalid world file.
-	DE_ERRORBINDINGWORLD=43,// Error binding world to renderer.
-	DE_INVALIDSERVERPACKET=44,// Got a bad packet from the server.
+	DE_ERRORBINDINGWORLD=43, // Error binding world to renderer.
+	DE_INVALIDSERVERPACKET=44, // Got a bad packet from the server.
 	DE_MISSINGSPRITEFILE=45,
 	DE_INVALIDSPRITEFILE=46,
 	DE_MISSINGMODELFILE=47,
@@ -47,11 +50,12 @@ enum LTResult
 	DE_CANTCREATESERVERSHELL=53, // Unable to create a server shell.
 	DE_INVALIDOBJECTDLL=54, // Invalid (or missing) object DLL.
 	DE_INVALIDOBJECTDLLVERSION=55, // Invalid object DLL version.
-	DE_ERRORINITTINGNETDRIVER=56	, // Couldn't initialize net driver.
+	DE_ERRORINITTINGNETDRIVER=56, // Couldn't initialize net driver.
 	LT_NOGAMERESOURCES=57, // No game resources specified.
 	DE_CANTRESTOREOBJECT=58, // Couldn't restore an object.
 	DE_NODENOTFOUND=59, // Couldn't find the specified model node.
-	DE_INVALIDPARAMS=60, // Invalid parameters passed to function (like NULL for an HOBJECT).
+	InvalidParams=60, // Invalid parameters passed to function (like NULL for an HOBJECT).
+	DE_INVALIDPARAMS=60,
 	DE_NOTFOUND=61, // Something was not found.
 	DE_ALREADYEXISTS=62, // Something already exists.
 	DE_NOTCONNECTED=63, // Not currently on a server.
@@ -65,14 +69,14 @@ enum LTResult
 	DE_INVALIDVERSION=69, // Invalid version.
 	LT_NOCHANGE=70, // Nothing was changed.
 	LT_INPUTBUFFEROVERFLOW=71, // Input buffer overflowed.
-	LT_OVERFLOW=71,	// Overflow (no shit).
+	LT_OVERFLOW=71, // Overflow (no shit).
 	LT_KEPTSAMEMODE=72, // Wasn't able to switch to new mode.
 	LT_NOTINITIALIZED=73,
 	LT_ALREADYIN3D=74, // Already between a Start3D/End3D block.
 	LT_NOTIN3D=75, // Not between a Start3D/End3D block.
 	LT_ERRORCOPYINGFILE=76,
 	LT_INVALIDFILE=77,
-	LT_INVALIDNETVERSION=78,	// Tried to connect to a server with a different
+	LT_INVALIDNETVERSION=78, // Tried to connect to a server with a different
 			// network protocol version.
 	LT_TIMEOUT=79, // Timed out..
 	LT_CANTBINDTOPORT=80, // Couldn't bind to the requested port.

@@ -123,11 +123,16 @@ public:
 		SDL_Surface* surface=cast(SDL_Surface*)blit_request.surface_ptr;
 		SDL_Surface* conv_surf=SDL_ConvertSurface(surface, _surface_main.format, 0);
 
-		Rect* source_rect=cast(Rect*)blit_request.source_ptr;
-		Rect* dest_rect=cast(Rect*)blit_request.dest_ptr;
+		Rect* source_rect=cast(Rect*)blit_request.source_rect;
+		Rect* dest_rect=cast(Rect*)blit_request.dest_rect;
 
 		SDL_Rect src_rect=SDL_Rect(source_rect.x1, source_rect.y1, source_rect.x2-source_rect.x1, source_rect.y2-source_rect.y1);
 		SDL_Rect dst_rect=SDL_Rect(dest_rect.x1, dest_rect.y1, dest_rect.x2-dest_rect.x1, dest_rect.y2-dest_rect.y1);
+
+		if (blit_request.flags & BlitRequestFlags.ColourKey)
+		{
+			SDL_SetColorKey(conv_surf, SDL_TRUE, blit_request.colour_key);
+		}
 
 		SDL_BlitScaled(conv_surf, &src_rect, _surface_main, &dst_rect);
 

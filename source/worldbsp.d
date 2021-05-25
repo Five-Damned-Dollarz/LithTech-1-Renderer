@@ -225,13 +225,23 @@ struct UnknownList // WorldModelList? Something Node related?
 	static assert(this.sizeof==24);
 }
 
-struct UnknownObject // WorldModel -- This is the base Object; Model, WorldModel, Sprite, Light, ParticleSystem, LineSystem, and Container derive from it
+struct Attachment
+{
+	vec3 position;
+	float[4] rotation;
+	ushort unknown;
+	ushort unknown_id; // count or id
+	uint node_id; // -1 = no node
+	Attachment* next;
+}
+
+struct UnknownObject // This is the base Object; Model, WorldModel, Sprite, Light, ParticleSystem, LineSystem, Polygrid, and Container derive from it
 {
 	DLink link;
 	DLink link_unknown; // maybe not even a link?
 	Buffer* list; // unknown
 
-	void*[2] unknown_1; // suspect object type-calc'd functors from engine
+	void*[2] unknown_1; // suspect functors based on object type id from engine
 
 	Buffer* root; // UnknownList? static assert(root.offsetof==36)
 
@@ -240,7 +250,7 @@ struct UnknownObject // WorldModel -- This is the base Object; Model, WorldModel
 
 	ubyte[4] colour;
 
-	Buffer* attachments;
+	Attachment* attachments;
 	vec3 position;
 	float[4] rotation;
 	vec3 scale;
@@ -305,11 +315,11 @@ align(2):
 	//static assert(???.offsetof==124); unsure what this is yet, but it's necessary for visibility?
 	static assert(client_user_flags.offsetof==284);
 	static assert(class_.offsetof==292);
-	static assert(bsp.offsetof==298); // for type_id=WorldModel
 	//static assert(light_radius.offsetof==296); for type_id=Light, possibly padded to 298?
+	static assert(bsp.offsetof==298); // for type_id=WorldModel
 	//static assert(???.offsetof==316); polygon pointer?
 	static assert(model_nodes.offsetof==320); // for type_id=Model, if 0 skip adding to draw list; possible pointer to model nodes?
-	// possibly 300 byte stride for one of the object types?
+	// possibly 300 byte stride for BaseObject?
 	// 428-432 stride?
 }
 

@@ -416,17 +416,9 @@ void* CreateContext(RenderContextInit* context_init)
 				auto attach_current=current.data.attachments;
 				while(attach_current!=null)
 				{
-					struct AttachmentList
-					{
-						Buffer*[10] buf;
-
-						static assert(this.sizeof==40);
-					}
-					test_out.writeln((cast(AttachmentList*)attach_current)[0..2]);
 					test_out.writeln(_renderer.AttachmentSomething(current.data, attach_current));
-					attach_current=attach_current.buf[9];
+					attach_current=attach_current.next;
 					test_out.writeln(attach_current);
-					test_out.flush();
 				}
 				current=current.prev;
 			}
@@ -443,7 +435,7 @@ void* CreateContext(RenderContextInit* context_init)
 		}
 	}
 
-	//TraverseNode(bsp.node_root);
+	TraverseNode(bsp.node_root);
 
 	(cast(VulkanRenderer)_renderer_inst).CreateBSPVertexBuffer(g_RenderContext.main_world.world_bsp);
 
@@ -542,61 +534,60 @@ int RenderScene(SceneDesc* scene_desc)
 				uint node_count=*cast(uint*)((cast(uint)obj.model_nodes) + 0x84);
 				test_out.writeln(obj, " node_count: ", node_count);
 
-				if (node_count <= node + 1u) // model_nodes + 0x84 = node_count
+				if (node + 1u > node_count) // model_nodes + 0x84 = node_count
 				{
-					return LTResult.DE_FINISHED;
+					return LTResult.Finished;
 				}
 				next = node + 1u;
-				return LTResult.LT_OK;
+				return LTResult.Ok;
 			}
 
-			return LTResult.DE_INVALIDPARAMS;
+			return LTResult.InvalidParams;
 		}
 
 		/// doesn't work for some reason
 		LTResult GetModelNodeName(UnknownObject* obj, uint node, char* name, int max_length)
 		{
-		  if ((node == 0) || (max_length == 0) || (obj == null) || (obj.type_id != 1))
-		  {
-		    return LTResult.DE_ERROR;
-		  }
-		  else
-		  {
-		  	uint node_count=*cast(uint*)((cast(uint)obj.model_nodes) + 0x84);
-		    if (node < node_count)
-		    {
-		    	char** node_name_list=*cast(char***)(cast(uint)obj.model_nodes + 0x80);
-		    	test_out.writeln(node_name_list[0..node_count]);
-		    	import std.string: fromStringz;
-		    	test_out.writeln(node_name_list[node][0..32]);
-		      strncpy(name, node_name_list[node], max_length - 1);
-		      return LTResult.LT_OK;
-		    }
-		  }
+			if ((node == 0) || (max_length == 0) || (obj == null) || (obj.type_id != 1))
+			{
+				return LTResult.Error; // assert(0);
+			}
+			else
+			{
+				uint node_count=*cast(uint*)((cast(uint)obj.model_nodes) + 0x84);
 
-		  return LTResult.DE_INVALIDPARAMS;
+				if (node < node_count)
+				{
+					char** node_name_list=*cast(char***)(cast(uint)obj.model_nodes + 0x80);
+					strncpy(name, node_name_list[node], max_length - 1);
+					return LTResult.Ok;
+				}
+			}
+
+			return LTResult.InvalidParams;
 		}
 
 		int GetModelAnimation(UnknownObject* obj)
 		{
-		  if ((obj != null) && (obj.type_id == 1))
-		  {
-		  	test_out.writeln(*cast(int*)(cast(int)obj + 348));
-		  	test_out.writeln(*cast(int*)(cast(int)obj.model_nodes + 0xf4));
-		  	test_out.writeln(*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4));
-		  	test_out.writeln((*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4)) / 0x74);
+			if ((obj != null) && (obj.type_id == 1))
+			{
+				test_out.writeln(*cast(int*)(cast(int)obj + 348));
+				test_out.writeln(*cast(int*)(cast(int)obj.model_nodes + 0xf4));
+				test_out.writeln(*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4));
+				test_out.writeln((*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4)) / 0x74);
 
-		    return (*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4)) / 0x74;
-		  }
-		  return -1;
+				return (*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4)) / 0x74;
+			}
+			return -1;
 		}
 
 		bool GetModelLooping(UnknownObject* obj)
 		{
-		  if ((obj != null) && (obj.type_id == 1)) {
-		    return cast(bool)(*cast(int*)(cast(int)obj + 328) >> 1 & 1);
-		  }
-		  return 0;
+			if ((obj != null) && (obj.type_id == 1)) {
+				return cast(bool)(*cast(int*)(cast(int)obj + 328) >> 1 & 1);
+			}
+
+			return 0;
 		}
 
 		obj_cur=node.objects.prev;
@@ -618,7 +609,7 @@ int RenderScene(SceneDesc* scene_desc)
 			test_out.writeln("GetModelAnimation: ", GetModelAnimation(object_inst));
 			test_out.writeln("GetModelLooping: ", GetModelLooping(object_inst));
 
-			/+if (object_inst.type_id==ObjectType.Model && object_inst.class_!=null)
+			if (object_inst.type_id==ObjectType.Model && object_inst.class_!=null)
 			{
 				test_out.writeln(*object_inst.class_);
 				//test_out.flush();
@@ -647,7 +638,18 @@ int RenderScene(SceneDesc* scene_desc)
 					//test_out.flush();
 				}
 
-				if (object_inst.class_.buf[12]!=null)
+				if (Attachment* attach=object_inst.attachments)
+				{
+					while(attach!=null)
+					{
+						auto attach_obj=_renderer.AttachmentSomething(object_inst, attach);
+						if (attach_obj) test_out.writeln(*attach_obj);
+						//while(object_inst)
+						test_out.writeln(*attach);
+						attach=attach.next;
+					}
+				}
+				/+if (object_inst.class_.buf[12]!=null)
 				{
 					ObjectClass* model_filename=cast(ObjectClass*)((cast(uint)object_inst.class_)+0x30);
 					//test_out.writeln((cast(char*)(&model_filename.name))[0..model_filename.name_length]);
@@ -659,19 +661,19 @@ int RenderScene(SceneDesc* scene_desc)
 					ObjectClass* model_filename=cast(ObjectClass*)((cast(uint)object_inst.class_)+0x34);
 					test_out.writeln(*model_filename);
 					//test_out.writeln((cast(char*)(&model_filename.name))[0..model_filename.name_length]);
-				}
+				}+/
 			}
 
-			if (object_inst.type_id==ObjectType.Model && object_inst.model_nodes!=null)
+			/+if (object_inst.type_id==ObjectType.Model && object_inst.model_nodes!=null)
 			{
 				test_out.writeln(object_inst.model_nodes[0..2]);
 
 				char** node_name_list=cast(char**)object_inst.model_nodes[1].buf[0];
 				test_out.writeln(object_inst.model_nodes[1].buf[1]);
 				test_out.writeln(node_name_list[0..32]);
-			}
+			}+/
 
-			test_out.flush();+/
+			//test_out.flush();
 
 			obj_cur=obj_cur.prev;
 		}
@@ -683,7 +685,7 @@ int RenderScene(SceneDesc* scene_desc)
 			ProcessNode(node.next[1]);
 	}
 
-	//ProcessNode(root_node);
+	ProcessNode(root_node);
 
 	if (_renderer.is_init!=0)
 	{
@@ -704,7 +706,7 @@ int RenderScene(SceneDesc* scene_desc)
 			}
 		}
 
-		test_out.flush();
+		//test_out.flush();
 
 		_renderer_inst.RenderScene(scene_desc);
 		return 1;
@@ -823,6 +825,7 @@ void UnlockScreen()
 
 void BlitToScreen(BlitRequest* blit_request)
 {
+	test_out.writeln(*blit_request);
 	_renderer_inst.BlitToScreen(blit_request);
 
 	/+auto real_surface=blit_request.surface_ptr;
