@@ -520,7 +520,6 @@ int RenderScene(SceneDesc* scene_desc)
 		test_out.writeln("//////////");
 		test_out.writeln(*node);
 		test_out.writeln("---");
-		test_out.flush();
 
 		UnknownList* obj_cur;
 		if (node.objects==null) goto SKIP;
@@ -529,26 +528,26 @@ int RenderScene(SceneDesc* scene_desc)
 
 		LTResult GetNextModelNode(UnknownObject* obj, uint node, out uint next)
 		{
-			if ((obj != null) && (obj.type_id == 1))
+			if ((obj!=null) && (obj.type_id==1))
 			{
-				uint node_count=*cast(uint*)((cast(uint)obj.model_nodes) + 0x84);
-				test_out.writeln(obj, " node_count: ", node_count);
+				uint node_count=*cast(uint*)((cast(uint)obj.model_nodes) + 0x84); // model_nodes + 0x84 = node_count
 
-				if (node + 1u > node_count) // model_nodes + 0x84 = node_count
+				if (node+1>node_count)
 				{
 					return LTResult.Finished;
 				}
-				next = node + 1u;
+
+				next=node+1;
+
 				return LTResult.Ok;
 			}
 
 			return LTResult.InvalidParams;
 		}
 
-		/// doesn't work for some reason
 		LTResult GetModelNodeName(UnknownObject* obj, uint node, char* name, int max_length)
 		{
-			if ((node == 0) || (max_length == 0) || (obj == null) || (obj.type_id != 1))
+			if ((node==0) || (max_length==0) || (obj==null) || (obj.type_id!=1))
 			{
 				return LTResult.Error; // assert(0);
 			}
@@ -556,10 +555,10 @@ int RenderScene(SceneDesc* scene_desc)
 			{
 				uint node_count=*cast(uint*)((cast(uint)obj.model_nodes) + 0x84);
 
-				if (node < node_count)
+				if (node<node_count)
 				{
 					char** node_name_list=*cast(char***)(cast(uint)obj.model_nodes + 0x80);
-					strncpy(name, node_name_list[node], max_length - 1);
+					strncpy(name, *(cast(char**)node_name_list[node]), max_length - 1);
 					return LTResult.Ok;
 				}
 			}
@@ -571,13 +570,9 @@ int RenderScene(SceneDesc* scene_desc)
 		{
 			if ((obj != null) && (obj.type_id == 1))
 			{
-				test_out.writeln(*cast(int*)(cast(int)obj + 348));
-				test_out.writeln(*cast(int*)(cast(int)obj.model_nodes + 0xf4));
-				test_out.writeln(*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4));
-				test_out.writeln((*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4)) / 0x74);
-
 				return (*cast(int*)(cast(int)obj + 348) - *cast(int*)(cast(int)obj.model_nodes + 0xf4)) / 0x74;
 			}
+
 			return -1;
 		}
 
@@ -602,29 +597,145 @@ int RenderScene(SceneDesc* scene_desc)
 			import Model: ObjectType;
 
 			uint next_node;
-			test_out.writeln(GetNextModelNode(object_inst, 0, next_node));
-			//char[64] test_name;
-			//test_out.writeln(GetModelNodeName(object_inst, 1, test_name.ptr, 64));
+			GetNextModelNode(object_inst, 0, next_node);
+			test_out.writeln(next_node);
+			char[16] test_name;
+			test_out.writeln(GetModelNodeName(object_inst, 1, test_name.ptr, test_name.length));
+			test_out.writeln(test_name);
 
 			test_out.writeln("GetModelAnimation: ", GetModelAnimation(object_inst));
 			test_out.writeln("GetModelLooping: ", GetModelLooping(object_inst));
 
+			import Objects.Model;
+			if (object_inst.type_id==ObjectType.Model)
+			{
+				Objects.Model.ModelObject* obj_=cast(Objects.Model.ModelObject*)object_inst;
+
+				if (auto model=obj_.model_data)
+				{
+					test_out.writeln(*model);
+
+					test_out.writeln(model.unknown_5[0..model.unknown_5_count]);
+
+					foreach(i, node_; model.nodes[0..model.node_count])
+					{
+						test_out.writeln(i, " [", node_, "]: ", node_.name.fromStringz, " ", *node_);
+
+						if (node_.child_nodes && node_.child_node_count)
+							test_out.writeln(" > ", *(cast(Buffer*)node_.child_nodes));
+
+						//if (node_.deform_vertices && node_.deform_vertex_count)
+						//	test_out.writeln("dverts: ", node_.deform_vertices[0..node_.deform_vertex_count]);
+					}
+
+					test_out.writeln(model.animations[0]);
+					test_out.writeln(model.animations[0].Keyframes());
+
+					test_out.writeln(model.vertices[0..model.unknown_9_count]);
+
+					//test_out.writeln(*(cast(Buffer*)model.vertices[0].unknown));
+
+					//test_out.writeln((cast(Buffer*)model.unknown_10[0])[0..8]);
+					//test_out.writeln((cast(Buffer*)model.unknown_10[1])[0..8]);
+
+					/+void* unknown_3;
+					uint unknown_3_count;
+
+					void* unknown_7;
+					uint unknown_7_count;
+
+					uint unknown_8;
+
+					uint face_count;
+
+					void*[3] unknown_10;
+
+					uint lod_count;
+					void* unknown_13;
+					uint unknown_13_count;
+					void* animations;
+					uint animation_count;+/
+				}
+
+				/+if (auto cur_anim=(cast(Objects.Model.ModelObject*)object_inst).anim_current)
+				{
+					test_out.writeln(cur_anim.name.fromStringz, ": ", *cur_anim);
+
+					if (cur_anim.unknown_2)
+					{
+						foreach(i, unk; cur_anim.unknown_4)
+						{
+							if (unk==null) continue;
+
+							test_out.writeln("unk_4[", i, "]: ", *cast(Buffer*)unk);
+						}
+
+						//test_out.writeln("0: ", *(cast(Buffer*)cur_anim.unknown_4[0]).buf[0]);
+						test_out.writeln("1: ", *(cast(Buffer*)cur_anim.unknown_4[1]).buf[0]);
+						test_out.writeln("1: ", cast(Buffer*)cur_anim.unknown_4[1]);
+						test_out.writeln("1: ", (cast(Buffer*)cur_anim.unknown_4[1]).buf[0]);
+					}
+				}+/
+
+				/+if (void* model_data=object_inst.model_nodes)
+				{
+					import gl3n.linalg;
+
+					struct ModelAnim
+					{
+						char* name;
+						uint duration; // in ms
+
+						vec3 anim_dims;
+
+						void* unknown_2;
+
+						vec3 bounds_min;
+						vec3 bounds_max;
+
+						float radius; // appears to be average radius
+						void* unknown_3a;
+
+						uint frame_count;
+
+						void*[5] unknown_4;
+
+						vec3 unknown_5;
+
+						void*[6] buf;
+						static assert(this.sizeof==116);
+					}
+
+					uint anim_count=*cast(uint*)(cast(uint)model_data+248);
+					test_out.writeln(anim_count);
+
+					auto model_anim=*cast(ModelAnim**)(cast(uint)model_data+244);
+					foreach(anim; model_anim[0..anim_count])
+					{
+						test_out.writeln(anim.name.fromStringz);
+						test_out.writeln(anim);
+					}
+				}+/
+			}
+
 			if (object_inst.type_id==ObjectType.Model && object_inst.class_!=null)
 			{
-				test_out.writeln(*object_inst.class_);
-				//test_out.flush();
+				import Objects.BaseObject : ObjectCreateStruct;
+				test_out.writeln(*(cast(ObjectClass_*)object_inst.class_));
+				test_out.writeln(*cast(ObjectCreateStruct*)(cast(ObjectClass_*)object_inst.class_).create_struct);
 
-				import Object.BaseObject;
-				test_out.writeln(*(cast(ObjectCreateStruct*)object_inst.list));
-				test_out.writeln(*(cast(ObjectClass*)object_inst.class_));
-				test_out.writeln(*(cast(ObjectClass*)object_inst.class_).create_struct);
-
-				struct ObjectClass
+				struct ObjectString
 				{
 				align(2):
-					Buffer*[5] buf1;
+					DLink link;
+					Buffer*[2] buf1;
 					ushort name_length;
 					char[64] name; // in place char array
+
+					@property string ToString() const
+					{
+						return name.ptr[0..name_length].idup;
+					}
 
 					static assert(name_length.offsetof==0x14);
 					static assert(name.offsetof==0x16);
@@ -632,36 +743,49 @@ int RenderScene(SceneDesc* scene_desc)
 
 				if (object_inst.class_.buf[3]!=null)
 				{
-					ObjectClass* obj_class=cast(ObjectClass*)object_inst.class_.buf[3];
+					ObjectString* obj_class=cast(ObjectString*)object_inst.class_.buf[3];
 					test_out.writeln(*obj_class);
 					test_out.writeln((cast(char*)(&obj_class.name))[0..obj_class.name_length]);
-					//test_out.flush();
 				}
 
-				if (Attachment* attach=object_inst.attachments)
+				if (auto attach=object_inst.attachments)
 				{
 					while(attach!=null)
 					{
 						auto attach_obj=_renderer.AttachmentSomething(object_inst, attach);
 						if (attach_obj) test_out.writeln(*attach_obj);
-						//while(object_inst)
 						test_out.writeln(*attach);
 						attach=attach.next;
 					}
 				}
-				/+if (object_inst.class_.buf[12]!=null)
+
+				struct StringList
 				{
-					ObjectClass* model_filename=cast(ObjectClass*)((cast(uint)object_inst.class_)+0x30);
-					//test_out.writeln((cast(char*)(&model_filename.name))[0..model_filename.name_length]);
-					test_out.writeln(*model_filename);
+					ObjectString* string_;
+					//ushort[2] unknown;
+					void* unknown;
+					uint id;
+					void* unknown_1;
+					void* unknown_2;
+				}
+
+				if (object_inst.class_.buf[12]!=null)
+				{
+					test_out.writeln(*cast(StringList*)object_inst.class_.buf[12]);
+
+					ObjectString* model_filename=*cast(ObjectString**)object_inst.class_.buf[12];
+					if (model_filename!=null)
+						test_out.writeln(model_filename.ToString);
 				}
 
 				if (object_inst.class_.buf[13]!=null)
 				{
-					ObjectClass* model_filename=cast(ObjectClass*)((cast(uint)object_inst.class_)+0x34);
-					test_out.writeln(*model_filename);
-					//test_out.writeln((cast(char*)(&model_filename.name))[0..model_filename.name_length]);
-				}+/
+					test_out.writeln(*cast(StringList*)object_inst.class_.buf[13]);
+
+					ObjectString* skin_filename=*cast(ObjectString**)object_inst.class_.buf[13];
+					if (skin_filename!=null)
+						test_out.writeln(skin_filename.ToString);
+				}
 			}
 
 			/+if (object_inst.type_id==ObjectType.Model && object_inst.model_nodes!=null)
@@ -672,8 +796,6 @@ int RenderScene(SceneDesc* scene_desc)
 				test_out.writeln(object_inst.model_nodes[1].buf[1]);
 				test_out.writeln(node_name_list[0..32]);
 			}+/
-
-			//test_out.flush();
 
 			obj_cur=obj_cur.prev;
 		}

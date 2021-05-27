@@ -1,4 +1,4 @@
-module Object.BaseObject;
+module Objects.BaseObject;
 
 import RendererTypes: DLink, Buffer;
 import Model;
@@ -82,6 +82,16 @@ align(1):
 	void* unknown; // if 0 we don't do something in a lot of updating functions
 }
 
+struct Attachment
+{
+	vec3 position;
+	float[4] rotation;
+	ushort parent_id;
+	ushort child_id;
+	uint node_id; // -1 = no node
+	Attachment* next;
+}
+
 struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, ParticleSystem, LineSystem, and Container derive from it
 {
 	DLink link;
@@ -97,7 +107,7 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 
 	ubyte[4] colour;
 
-	Buffer* attachments;
+	Attachment* attachments;
 	vec3 position;
 	float[4] rotation;
 	vec3 scale;
@@ -139,22 +149,34 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 
 	// probably where "base" Object ends and derived data begins?
 
-	WorldData* bsp;
+	//WorldData* bsp;
 
 	//pragma(msg, this.sizeof);
 	static assert(this.sizeof>=108);
 	static assert(flags.offsetof==40);
 	static assert(user_flags.offsetof==44);
-	static assert(colour.offsetof==48);
+	static assert(colour.offsetof==48); // if colour[4] (alpha) is not 0xFF then add to transparent draw list instead of solid
 	static assert(attachments.offsetof==52);
 	static assert(position.offsetof==56);
+	//static assert(???.offsetof==84); for type_id=ParticleSystem, unsure what these values are for
 	static assert(type_id.offsetof==110);
-	//static assert(xxx.offsetof==124); unsure what this is yet, but it's necessary for visibility?
+	//static assert(???.offsetof==124); unsure what this is yet, but it's necessary for visibility?
 	static assert(state.offsetof==220);
+	static assert(client_user_flags.offsetof==284);
 	static assert(class_.offsetof==292);
 
-	//static assert(light_radius.offsetof==296); for type_id=Light
-	//static assert(bsp.offsetof==298);
+	//static assert(light_radius.offsetof==296); for type_id=Light, possibly padded to 298?
+	//static assert(bsp.offsetof==298); // for type_id=WorldModel
+	//static assert(model_data.offsetof==300); // for type_id=Model
+	//static assert(camera_width.offsetof==304); // for type_id=Camera
+	//static assert(fov_x.offsetof==312); // for type_id=Camera
+	//static assert(???.offsetof==316); polygon pointer?
+	//static assert(model_nodes.offsetof==320); // for type_id=Model, pointer to model nodes?
+	//static assert(model_frame.offsetof==336); // for type_id=Model
+	//static assert(polygrid_width.offsetof==368); // for type_id=Polygrid
+	//static assert(polygrid_colours.offsetof==376); // for type_id=Polygrid
+	//static assert(???.offsetof==380); // for type_id=Model, model node related?
+	//static assert(container_code.offsetof==428); // for type_id=Container
 
 	// possibly 300 byte stride for one of the object types?
 	// 428-432 stride?

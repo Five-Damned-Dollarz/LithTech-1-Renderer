@@ -192,7 +192,7 @@ public:
 			/+
 			 + possible avenue for replacing the window with a 32 bit pixel format: GetWindowLong(window, GWL_WNDPROC) -> create new window
 			 +/
-			test_out.writeln("hDC: ", GetDC(window), ", WndProc: ", GetWindowLong(window, GWL_WNDPROC));
+			test_out.writeln("hDC: ", GetDC(window), ", WndProc: ", cast(void*)GetWindowLong(window, GWL_WNDPROC));
 
 			RECT rect={ 0, 0, Width, Height };
 			DWORD style=GetWindowLong(window, GWL_STYLE);
@@ -628,8 +628,9 @@ private:
 		vkEnumerateInstanceExtensionProperties(null, &extension_count, extensions.ptr);
 
 		test_out.writeln("Available Vulkan extensions:");
-		//foreach(extension; extensions)
-		//	test_out.writeln(extension.extensionName);
+		import std.string: fromStringz;
+		foreach(extension; extensions)
+			test_out.writeln(extension.extensionName.ptr.fromStringz);
 	}
 
 	auto CreateVkInstance()

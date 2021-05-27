@@ -154,6 +154,22 @@ struct DList
 	DLink head;
 }
 
+struct DString
+{
+	DLink link;
+	uint is_init; // flags?
+	ushort length_real;
+	ushort length;
+	char data; // possibly in place array?
+
+	@property string ToString() const
+	{
+		return (&data)[0..length].idup;
+	}
+
+	static assert(data.offsetof==20);
+}
+
 struct DEPalette
 {
 	DLink link;

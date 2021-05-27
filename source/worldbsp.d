@@ -1,6 +1,6 @@
 module WorldBSP;
 
-import RendererTypes: DLink, Buffer;
+import RendererTypes: DLink, DString, Buffer;
 import Model;
 import Texture;
 
@@ -229,10 +229,33 @@ struct Attachment
 {
 	vec3 position;
 	float[4] rotation;
-	ushort unknown;
-	ushort unknown_id; // count or id
+	ushort parent_id;
+	ushort child_id;
 	uint node_id; // -1 = no node
 	Attachment* next;
+}
+
+struct ObjectClass_
+{
+	uint flags;
+	ObjectClass_* inter_object_link;
+	void* unknown_1;
+	DString* strings;
+	float next_update;
+	float deactivate_time;
+	float deactivate_time_;
+	void* unknown_2;
+	void* unknown_3;
+	uint unknown_id;
+	Buffer* create_struct;
+	void* unknown_4;
+	char* model_filename;
+	char* texture_filename;
+	UnknownObject* next_inactive_obj;
+	UnknownObject* next_object;
+	void* unknown_5;
+	void* unknown_6;
+	uint unknown_7;
 }
 
 struct UnknownObject // This is the base Object; Model, WorldModel, Sprite, Light, ParticleSystem, LineSystem, Polygrid, and Container derive from it
@@ -280,7 +303,7 @@ struct UnknownObject // This is the base Object; Model, WorldModel, Sprite, Ligh
 
 	Buffer* self1;
 
-	uint state;
+	uint state; // 0x00 = normal, 0x08 = inactive, 0x10 = inactive touch
 
 	void*[4] buf2;
 	Buffer*[3] self2;
@@ -288,7 +311,7 @@ struct UnknownObject // This is the base Object; Model, WorldModel, Sprite, Ligh
 	Buffer* self3;
 	uint client_user_flags;
 	void* buf4;
-	Buffer* class_;
+	Buffer* class_; // contains interobject links for sure
 
 	// probably where "base" Object ends and derived data begins?
 align(2):
@@ -317,8 +340,18 @@ align(2):
 	static assert(class_.offsetof==292);
 	//static assert(light_radius.offsetof==296); for type_id=Light, possibly padded to 298?
 	static assert(bsp.offsetof==298); // for type_id=WorldModel
+
+	//static assert(model_data.offsetof==300); // for type_id=Model
+	//static assert(camera_width.offsetof==304); // for type_id=Camera
+	//static assert(fov_x.offsetof==312); // for type_id=Camera
 	//static assert(???.offsetof==316); polygon pointer?
-	static assert(model_nodes.offsetof==320); // for type_id=Model, if 0 skip adding to draw list; possible pointer to model nodes?
+	//static assert(model_nodes.offsetof==320); // for type_id=Model, pointer to model nodes?
+	//static assert(model_frame.offsetof==336); // for type_id=Model
+	//static assert(polygrid_width.offsetof==368); // for type_id=Polygrid
+	//static assert(polygrid_colours.offsetof==376); // for type_id=Polygrid
+	//static assert(???.offsetof==380); // for type_id=Model, model node related?
+	//static assert(container_code.offsetof==428); // for type_id=Container
+
 	// possibly 300 byte stride for BaseObject?
 	// 428-432 stride?
 }
