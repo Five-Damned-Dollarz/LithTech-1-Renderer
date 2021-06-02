@@ -91,7 +91,7 @@ struct SharedTexture
 	short width, height, bpp; // unsure
 	Buffer*[34] buf2;
 
-	//static assert(this.sizeof>=40); // 64/68?
+	//static assert(this.sizeof>=40); // 36 bytes cleared, 64/68?
 }
 
 /+

@@ -3,6 +3,7 @@ module WorldBSP;
 import RendererTypes: DLink, DString, Buffer;
 import Model;
 import Texture;
+import Objects.BaseObject;
 
 import gl3n.linalg;
 
@@ -80,7 +81,7 @@ struct Node
 	WorldBSP* bsp;
 	vec3 center;
 	float radius;
-	UnknownList* objects; // unsure
+	ObjectList* objects; // unsure
 	Node*[2] next;
 
 	static assert(this.sizeof==52);
@@ -213,149 +214,6 @@ struct MainWorld
 	static assert(this.sizeof==204);
 }
 
-struct UnknownList // WorldModelList? Something Node related?
-{
-	UnknownList* prev;
-	UnknownList* next;
-	UnknownObject* data;
-
-	Node* node;
-	UnknownList*[2] buf; // [0] = Node*? [1/2] = other entries in the list?
-
-	static assert(this.sizeof==24);
-}
-
-struct Attachment
-{
-	vec3 position;
-	float[4] rotation;
-	ushort parent_id;
-	ushort child_id;
-	uint node_id; // -1 = no node
-	Attachment* next;
-}
-
-struct ObjectClass_
-{
-	uint flags;
-	ObjectClass_* inter_object_link;
-	void* unknown_1;
-	DString* strings;
-	float next_update;
-	float deactivate_time;
-	float deactivate_time_;
-	void* unknown_2;
-	void* unknown_3;
-	uint unknown_id;
-	Buffer* create_struct;
-	void* unknown_4;
-	char* model_filename;
-	char* texture_filename;
-	UnknownObject* next_inactive_obj;
-	UnknownObject* next_object;
-	void* unknown_5;
-	void* unknown_6;
-	uint unknown_7;
-}
-
-struct UnknownObject // This is the base Object; Model, WorldModel, Sprite, Light, ParticleSystem, LineSystem, Polygrid, and Container derive from it
-{
-	DLink link;
-	DLink link_unknown; // maybe not even a link?
-	Buffer* list; // unknown
-
-	void*[2] unknown_1; // suspect functors based on object type id from engine
-
-	Buffer* root; // UnknownList? static assert(root.offsetof==36)
-
-	ModelFlags flags;
-	uint user_flags;
-
-	ubyte[4] colour;
-
-	Attachment* attachments;
-	vec3 position;
-	float[4] rotation;
-	vec3 scale;
-
-	float unknown_5;
-	short[2] unknown_6;
-	short ffff; // unknown, is set to FFFF on creation, possible bitmask for what's updated
-	short[2] frame_code; // [108] is set to 0 on frame start
-
-	ObjectType type_id;
-	ubyte block_priority;
-
-	float unknown_7;
-	vec3 velocity;
-	vec3 acceleration;
-	float friction_coeff;
-	float mass;
-	float force_ignore_limit;
-	int unknown_8;
-	int unknown_9;
-
-	vec3 bounds_min_relative;
-	vec3 bounds_max_relative;
-	vec3 dimensions;
-
-	void*[5] buf1;
-
-	Buffer* self1;
-
-	uint state; // 0x00 = normal, 0x08 = inactive, 0x10 = inactive touch
-
-	void*[4] buf2;
-	Buffer*[3] self2;
-	void*[7] buf3;
-	Buffer* self3;
-	uint client_user_flags;
-	void* buf4;
-	Buffer* class_; // contains interobject links for sure
-
-	// probably where "base" Object ends and derived data begins?
-align(2):
-	short buf4a;
-	WorldData* bsp;
-
-	void*[4] buf5;
-	short buf6;
-
-	Buffer* model_nodes;
-
-	//mat4 mat4_unknown_2;
-	//mat4 mat4_unknown_3;
-
-	//Buffer[4] buf2;
-
-	//pragma(msg, this.sizeof);
-	static assert(this.sizeof>=108);
-	static assert(flags.offsetof==40);
-	static assert(colour.offsetof==48); // if colour[4] (alpha) is not 0xFF then add to transparent draw list instead of solid
-	static assert(attachments.offsetof==52);
-	//static assert(???.offsetof==84); for type_id=ParticleSystem, unsure what these values are for
-	static assert(type_id.offsetof==110);
-	//static assert(???.offsetof==124); unsure what this is yet, but it's necessary for visibility?
-	static assert(client_user_flags.offsetof==284);
-	static assert(class_.offsetof==292);
-	//static assert(light_radius.offsetof==296); for type_id=Light, possibly padded to 298?
-	static assert(bsp.offsetof==298); // for type_id=WorldModel
-
-	//static assert(model_data.offsetof==300); // for type_id=Model
-	//static assert(camera_width.offsetof==304); // for type_id=Camera
-	//static assert(fov_x.offsetof==312); // for type_id=Camera
-	//static assert(???.offsetof==316); polygon pointer?
-	//static assert(model_nodes.offsetof==320); // for type_id=Model, pointer to model nodes?
-	//static assert(model_frame.offsetof==336); // for type_id=Model
-	//static assert(polygrid_width.offsetof==368); // for type_id=Polygrid
-	//static assert(polygrid_colours.offsetof==376); // for type_id=Polygrid
-	//static assert(???.offsetof==380); // for type_id=Model, model node related?
-	//static assert(container_code.offsetof==428); // for type_id=Container
-
-	// possibly 300 byte stride for BaseObject?
-	// 428-432 stride?
-}
-
 struct WorldData
 {
 	WorldBSP*[2] objs; // orig + transformed?
@@ -376,7 +234,7 @@ struct WorldBSP
 	Node* nodes;
 	uint node_count;
 
-	UnknownList* world_models; // must have 24 byte stride
+	ObjectList* world_models; // must have 24 byte stride
 	uint world_models_count;
 
 	Surface* surfaces;
@@ -394,7 +252,7 @@ struct WorldBSP
 	uint unknown_4; // leaf_list_contents length? possible address? possible flag for something?
 
 	Node* node_root;
-	UnknownList* world_model_root;
+	ObjectList* world_model_root;
 
 	Polygon** polygons; // polygons?
 	uint polygon_count;

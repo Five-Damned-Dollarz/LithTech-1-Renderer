@@ -58,13 +58,38 @@ align(1):
 	float m_fDeactivationTime; // Amount of time before object deactivates self
 }
 
+struct StringList
+{
+	ObjectString* string_;
+	//ushort[2] unknown;
+	void* unknown;
+	uint id;
+	void* unknown_1;
+	void* unknown_2;
+}
+
+struct ObjectString
+{
+align(2):
+	DLink link;
+	Buffer*[2] buf1;
+	ushort name_length;
+	char[64] name; // in place char array
+	@property string ToString() const
+	{
+		return name.ptr[0..name_length].idup;
+	}
+	static assert(name_length.offsetof==0x14);
+	static assert(name.offsetof==0x16);
+}
+
 struct ObjectClass
 {
 align(1):
 	uint flags;
-	void* unknown_obj;
+	ObjectClass* unknown_obj; // ???
 	void* buf1;
-	Buffer* strings;
+	ObjectString** object_name;
 	float next_update;
 	float deactivate_time;
 	float deactivate_time_;
@@ -73,8 +98,8 @@ align(1):
 	Buffer* unknown_id;
 	ObjectCreateStruct* create_struct;
 	void* buf4;
-	Buffer* file_name;
-	Buffer* skin_name;
+	ObjectString** model_filename;
+	ObjectString** texture_filename;
 	BaseObject* next;
 	BaseObject* next_inactive;
 	void* buf5;
@@ -140,8 +165,9 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 	ObjState state;
 
 	void*[4] buf2;
-	Buffer*[3] self2;
-	void*[7] buf3;
+	Buffer*[4] self2;
+	float[4] unknown_rot;
+	void*[2] buf3;
 	Buffer* self3;
 	uint client_user_flags;
 	void* buf4;
@@ -162,28 +188,16 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 	static assert(type_id.offsetof==110);
 	//static assert(???.offsetof==124); unsure what this is yet, but it's necessary for visibility?
 	static assert(state.offsetof==220);
+	static assert(unknown_rot.offsetof==256);
 	static assert(client_user_flags.offsetof==284);
 	static assert(class_.offsetof==292);
 
-	//static assert(light_radius.offsetof==296); for type_id=Light, possibly padded to 298?
 	//static assert(bsp.offsetof==298); // for type_id=WorldModel
-	//static assert(model_data.offsetof==300); // for type_id=Model
 	//static assert(camera_width.offsetof==304); // for type_id=Camera
 	//static assert(fov_x.offsetof==312); // for type_id=Camera
 	//static assert(???.offsetof==316); polygon pointer?
-	//static assert(model_nodes.offsetof==320); // for type_id=Model, pointer to model nodes?
-	//static assert(model_frame.offsetof==336); // for type_id=Model
-	//static assert(polygrid_width.offsetof==368); // for type_id=Polygrid
-	//static assert(polygrid_colours.offsetof==376); // for type_id=Polygrid
-	//static assert(???.offsetof==380); // for type_id=Model, model node related?
 	//static assert(container_code.offsetof==428); // for type_id=Container
 
 	// possibly 300 byte stride for one of the object types?
 	// 428-432 stride?
-}
-
-struct ModelAnim
-{
-	void*[29] buf;
-	static assert(this.sizeof==116);
 }

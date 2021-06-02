@@ -2,6 +2,7 @@ module RendererTypes;
 
 import WorldBSP;
 import Texture;
+import Objects.BaseObject;
 import vk.Surface;
 
 import gl3n.linalg;
@@ -89,7 +90,7 @@ struct SceneDesc
 	// unknown
 	float[9] unkown_matrix;
 	float[3] unknown_vector;
-	UnknownObject** unknown_array_2; // world model array?
+	BaseObject** unknown_array_2; // world model array?
 	int unknown_count;
 
 	// camera stuff
@@ -186,7 +187,7 @@ enum ClearFlags : uint
 extern(C)
 struct RenderDLL
 {
-	/+ DObject* +/ UnknownObject* function(UnknownObject* /+ DObject* +/, Attachment*) AttachmentSomething; // called by ProcessAttachment
+	BaseObject* function(BaseObject*, Attachment*) GetAttachmentObject; // called by ProcessAttachment
 	TextureData* function(SharedTexture*, void* /+ out bool? +/) GetTexture;
 	void function(SharedTexture*) FreeTexture;
 	void function() UnknownFunc_1;
