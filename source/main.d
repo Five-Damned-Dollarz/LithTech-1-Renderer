@@ -472,6 +472,38 @@ int RenderScene(SceneDesc* scene_desc)
 			auto object_inst=obj_cur.data;
 			test_out.writeln(*object_inst);
 
+			if (auto class_=object_inst.class_)
+			{
+				test_out.writeln("-- class begin\n", *class_);
+				if (class_.object_instance)
+				{
+					import std.string: fromStringz;
+
+					test_out.writeln(object_inst);
+					test_out.writeln(*class_.object_instance);
+
+					auto temp_aggr=class_.object_instance.m_pFirstAggregate;
+					while(temp_aggr)
+					{
+						test_out.writeln("aggr: ", *temp_aggr);
+						temp_aggr=temp_aggr.m_pNextAggregate;
+					}
+
+					test_out.writeln(*class_.class_definition);
+					test_out.writeln(class_.class_definition.m_ClassName.fromStringz);
+
+					foreach(prop; class_.class_definition.Properties)
+					{
+						test_out.writeln(prop.m_PropName.fromStringz);
+						test_out.writeln(prop);
+						if (prop.m_PropType==0 && prop.m_DefaultValueString)
+							test_out.writeln(prop.m_DefaultValueString.fromStringz);
+					}
+
+					test_out.writeln("--- class end");
+				}
+			}
+
 			import std.string: fromStringz;
 			import Model: ObjectType;
 			import Objects.Model;
@@ -483,6 +515,28 @@ int RenderScene(SceneDesc* scene_desc)
 
 				test_out.TraverseModel(obj_.model_data.unknown_5);
 				test_out.writeln("Cur anim: ", obj_.anim_current.name.fromStringz);
+
+				if (obj_.texture)
+				{
+					test_out.writeln("Texture: ", *obj_.texture);
+
+					if (obj_.texture.render_data)
+					{
+						foreach(tex; g_TextureManager.textures)
+						{
+							if (cast(RenderTexture*)tex==obj_.texture.render_data)
+							{
+								auto r_tex=cast(RenderTexture)obj_.texture.render_data;
+								test_out.writeln("RenderTex: ", r_tex);
+								test_out.writeln("RTexInfo: ", r_tex.image);
+								test_out.writeln("RTexInfo: ", r_tex.memory);
+								test_out.writeln("RTexInfo: ", r_tex.image_view);
+								test_out.writeln("RTexInfo: ", r_tex.texture_descriptor);
+								test_out.writeln("RTexInfo: ", r_tex.texture_ref);
+							}
+						}
+					}
+				}
 
 				//if (obj_.unknown_nodes)
 				//	test_out.writeln(*cast(Buffer*)obj_.unknown_nodes);

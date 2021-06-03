@@ -146,11 +146,11 @@ struct ModelData
 
 	uint lod_count;
 
-	float lod_dist_min;
-	float lod_interval;
-	float lod_dist_max;
+	float lod_dist_min; // LODSTARTDIST
+	float lod_interval; // LODINCREMENT
+	float lod_dist_max; // LODMAXDIST
+	float unknown_11; // MIPMAPDISTADD?
 
-	void* unknown_11;
 	int unknown_12; // short[2]?
 
 	mat4* node_matrices;
@@ -158,8 +158,8 @@ struct ModelData
 
 	char* command_string; // + 0x10 = in-place node name?
 
-	void* unknown_13;
-	float unknown_float_b;
+	void* unknown_13; // list of pointers to animation something?
+	float unknown_float_b; // DrawIndexedDist command string
 	void*[6] buf;
 
 	ModelAnim* animations;
