@@ -77,7 +77,7 @@ struct SharedTexture
 {
 	Buffer* ref1; // unknown
 	TextureData* engine_data;
-	RenderTexture* render_data; // render_data; if null load new texture from engine_data?
+	RenderTexture render_data; // render_data; if null load new texture from engine_data?
 	DLink link;
 
 	// possibly functions here?
@@ -173,7 +173,7 @@ class RenderTexture
 		in(data!=null)
 	{
 		texture_ref=texture;
-		texture.render_data=(cast(RenderTexture*)this);
+		texture.render_data=this;
 
 		import Main: _renderer_inst;
 		import VulkanRender;

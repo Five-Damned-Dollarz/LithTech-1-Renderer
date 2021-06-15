@@ -496,7 +496,6 @@ LAB_0004814b:
 
 					foreach(i, polygon; bsp.polygons[0..bsp.polygon_count])
 					{
-						import Model: SurfaceFlags;
 						if (polygon.surface.flags & SurfaceFlags.Invisible)
 							continue;
 
@@ -1546,8 +1545,6 @@ private:
 
 			size_t image_size=width*height*channels;
 
-			// debug test_out.writeln(width, "x", height, " ", pixels[0..128]);
-
 			VkBuffer staging_buffer;
 			VkMappedMemoryRange staging_memory;
 
@@ -1796,7 +1793,6 @@ private:
 		{
 			vert_count=vert_buffer.length;
 
-			import Model: SurfaceFlags;
 			if (polygon.surface.flags & SurfaceFlags.Invisible)
 				continue;
 			//bind polygon.surface.shared_texture.render_data.image_view

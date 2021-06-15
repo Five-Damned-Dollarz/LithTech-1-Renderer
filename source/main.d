@@ -253,9 +253,9 @@ void BindTexture(SharedTexture* texture, int unknown)
 {
 	//test();
 
-	if (texture.render_data!=null)
+	if (texture.render_data !is null)
 	{
-		RenderTexture* render_texture=texture.render_data;
+		RenderTexture render_texture=texture.render_data;
 		TextureData* texture_data=_renderer.GetTexture(texture, null);
 
 		if (texture_data!=null)
@@ -273,7 +273,7 @@ void BindTexture(SharedTexture* texture, int unknown)
 		TextureData* texture_data=_renderer.GetTexture(texture, null);
 
 		RenderTexture r_texture=g_TextureManager.CreateTexture(texture, texture_data);
-		texture.render_data=cast(RenderTexture*)r_texture;
+		texture.render_data=r_texture;
 
 		_renderer.FreeTexture(texture);
 	}
@@ -505,7 +505,6 @@ int RenderScene(SceneDesc* scene_desc)
 			}
 
 			import std.string: fromStringz;
-			import Model: ObjectType;
 			import Objects.Model;
 			if (object_inst.type_id==ObjectType.Model)
 			{
@@ -519,23 +518,6 @@ int RenderScene(SceneDesc* scene_desc)
 				if (obj_.texture)
 				{
 					test_out.writeln("Texture: ", *obj_.texture);
-
-					if (obj_.texture.render_data)
-					{
-						foreach(tex; g_TextureManager.textures)
-						{
-							if (cast(RenderTexture*)tex==obj_.texture.render_data)
-							{
-								auto r_tex=cast(RenderTexture)obj_.texture.render_data;
-								test_out.writeln("RenderTex: ", r_tex);
-								test_out.writeln("RTexInfo: ", r_tex.image);
-								test_out.writeln("RTexInfo: ", r_tex.memory);
-								test_out.writeln("RTexInfo: ", r_tex.image_view);
-								test_out.writeln("RTexInfo: ", r_tex.texture_descriptor);
-								test_out.writeln("RTexInfo: ", r_tex.texture_ref);
-							}
-						}
-					}
 				}
 
 				//if (obj_.unknown_nodes)
@@ -644,7 +626,7 @@ int RenderScene(SceneDesc* scene_desc)
 			ProcessNode(node.next[1]);
 	}
 
-	ProcessNode(root_node);
+	//ProcessNode(root_node);
 
 	if (_renderer.is_init!=0)
 	{

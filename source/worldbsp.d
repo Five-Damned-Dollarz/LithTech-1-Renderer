@@ -1,7 +1,6 @@
 module WorldBSP;
 
 import RendererTypes: DLink, DString, Buffer;
-import Model;
 import Texture;
 import Objects.BaseObject;
 
@@ -85,6 +84,22 @@ struct Node
 	Node*[2] next;
 
 	static assert(this.sizeof==52);
+}
+
+enum SurfaceFlags : uint
+{
+	Solid=0x1,
+	NonExistant=0x2,
+	Invisible=0x4,
+	Transparent=0x8,
+	Sky=0x10,
+	Bright=0x20,
+	GouraudShade=0x40,
+	LightMap=0x80,
+	NoSubDiv=0x200,
+	Hullmaker=0x400,
+	AlwaysLightMap=0x800,
+	DirectionalLight=0x1000,
 }
 
 struct Surface

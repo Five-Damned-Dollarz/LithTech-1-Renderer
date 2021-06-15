@@ -196,7 +196,7 @@ struct ModelObject
 
 	AnimData* anim_data;
 
-	void*[4] buf; // [304] = possible SharedTexture?
+	void*[4] buf;
 
 	ModelData* model_data;
 
@@ -211,7 +211,9 @@ struct ModelObject
 	ModelAnim* anim_current;
 	AnimKeyframe* anim_curr_keyframes;
 
-	void*[3] buf3;
+	void* buf3;
+	uint frame_index; // seems possible?
+	float frame_interpolation; // not sure, but seems like it could be the keyframe interpolation
 
 	int unknown_zero;
 	float[2] unknown_sqrt;
