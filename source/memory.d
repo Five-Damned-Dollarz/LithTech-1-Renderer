@@ -48,13 +48,9 @@ class Allocation
 		debug { test_out.writeln("Free."); test_out.flush(); }
 	}
 
-	@property VkDeviceSize AvailableMemory() const
+	@property VkDeviceSize AvailableMemory() const // cacheable?
 	{
 		VkDeviceSize free_mem=size;
-
-		/+foreach(alloc; suballocs)
-			if (alloc.is_free)
-				free_mem+=alloc.size;+/
 
 		foreach(alloc; suballocs)
 			free_mem-=alloc.size;
@@ -124,8 +120,11 @@ class Allocator
 		{
 			VkResult res=block.Chunk(memory_range.size, mem_reqs.alignment, memory_range);
 
-			test_out.writeln(__FUNCTION__, " - ", res);
-			test_out.flush();
+			debug
+			{
+				test_out.writeln(__FUNCTION__, " - ", res);
+				test_out.flush();
+			}
 
 			if (res==VK_SUCCESS) // check if able to allocate
 			{
@@ -139,8 +138,12 @@ class Allocator
 		allocs[mem_type_index]~=new_block;
 
 		VkResult res=new_block.Chunk(memory_range.size, mem_reqs.alignment, memory_range);
-		test_out.writeln(__FUNCTION__, " - ", res);
-		test_out.flush();
+
+		debug
+		{
+			test_out.writeln(__FUNCTION__, " - ", res);
+			test_out.flush();
+		}
 
 		return VK_SUCCESS;
 	}

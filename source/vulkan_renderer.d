@@ -20,7 +20,6 @@ import RendererTypes;
 import Texture;
 
 File test_out;
-FILE* test_out_c;
 
 VkDebugUtilsMessengerEXT debug_messenger;
 
@@ -30,7 +29,11 @@ VkBool32 DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 		const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
 		void* user_data) nothrow @nogc
 {
-	fprintf(test_out_c, "%s\n", callback_data.pMessage);
+	debug
+	{
+		import std.string: fromStringz;
+		test_out.writeln(callback_data.pMessage.fromStringz);
+	}
 	return VK_FALSE;
 }
 
@@ -79,6 +82,53 @@ struct Vertex
 				offset: uv.offsetof
 			},
 		];
+		return attribute_descriptions;
+	}
+
+	static VkVertexInputAttributeDescription[] GetAttributeDescriptions2()
+	{
+		import std.traits;
+
+		VkFormat GetVkFormatFromType(const size_t type) // FIXME: yes, this is really fucking stupid
+		{
+			switch(type)
+			{
+				case 1:
+					return VK_FORMAT_R8_SNORM;
+
+				case 2:
+					return VK_FORMAT_R16_SNORM;
+
+				case 4:
+					return VK_FORMAT_R32_SFLOAT;
+
+				case 8:
+					return VK_FORMAT_R32G32_SFLOAT;
+
+				case 12:
+					return VK_FORMAT_R32G32B32_SFLOAT;
+
+				default:
+					return VK_FORMAT_UNDEFINED; // this will trigger the debug layers
+			}
+		}
+
+		VkVertexInputAttributeDescription[] attribute_descriptions=new VkVertexInputAttributeDescription[0];
+
+		foreach(i, m; __traits(allMembers, Vertex))
+		{
+			static if (!isFunction!(__traits(getMember, Vertex, m)))
+			{
+				VkVertexInputAttributeDescription new_;
+				new_.binding=0;
+				new_.location=i; // I don't think this works if there's larger than 128 bit values, eg. an array of something
+				new_.format=GetVkFormatFromType(typeof(__traits(getMember, Vertex, m)).sizeof);
+				new_.offset=__traits(getMember, Vertex, m).offsetof;
+
+				attribute_descriptions~=new_;
+			}
+		}
+
 		return attribute_descriptions;
 	}
 }
@@ -186,7 +236,6 @@ public:
 	{
 		import std.stdio;
 		test_out.open("vk_test.txt", "w");
-		test_out_c=test_out.getFP();
 
 		{
 			/+
@@ -243,41 +292,6 @@ public:
 
 		CreateCommandBuffers();
 
-		void SetClearCommandBuffer()
-		{
-			VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ];
-
-			foreach(i; 0.._buffers.length)
-			{
-				auto buffer=_command_buffers[i];
-
-				VkRenderPassBeginInfo render_pass_begin_info={
-					renderPass: _render_pass,
-					framebuffer: _buffers[i].framebuffer,
-					renderArea: {
-						offset: { 0, 0 },
-						extent: _extents
-					},
-					clearValueCount: clear_colour.length,
-					pClearValues: clear_colour.ptr
-				};
-
-				VkCommandBufferBeginInfo command_buffer_begin_info;
-				vkBeginCommandBuffer(buffer, &command_buffer_begin_info);
-				vkCmdBeginRenderPass(buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-				vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline);
-				VkBuffer[] vertex_buffers=[ _vertex_buffer ];
-				VkDeviceSize[] offsets=[ 0 ];
-				vkCmdBindVertexBuffers(buffer, 0, vertex_buffers.length, vertex_buffers.ptr, offsets.ptr);
-				vkCmdBindIndexBuffer(buffer, _vertex_index_buffer, 0, VK_INDEX_TYPE_UINT16);
-				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 0, 1, &_descriptor_sets[i], 0, null);
-				vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipeline_layout, 1, 1, &_texture_descriptor, 0, null);
-				vkCmdDrawIndexed(buffer, index_count, 1, 0, 0, 0);
-				vkCmdEndRenderPass(buffer);
-				vkEndCommandBuffer(buffer);
-			}
-		}
-
 		///
 		VkSemaphoreCreateInfo semaphore_info;
 		vkCreateSemaphore(g_Device, &semaphore_info, null, &_is_image_available);
@@ -315,7 +329,6 @@ public:
 	}
 
 	import WorldBSP: Node;
-
 	private void DrawBSP(Node* node)
 	{
 		/*if (node.next.flags & 8)
@@ -426,6 +439,7 @@ LAB_0004814b:
 		+/
 	}
 
+	/// FIXME: move most of this into RenderScene so we don't need to use g_RenderContext and try use a null reference during loading screens
 	override void SwapBuffers() // vkQueuePresent
 	{
 		uint image_index;
@@ -457,7 +471,7 @@ LAB_0004814b:
 
 			void SetCommandBuffer(size_t image_index)
 			{
-				VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ];
+				VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ]; // never clear to black! Black hides bugs!
 
 				auto buffer=_command_buffers[image_index];
 
@@ -565,7 +579,7 @@ LAB_0004814b:
 
 	override void Clear()
 	{
-		//
+		// may be incompatible with how Vulkan works
 	}
 
 	override void* LockSurface(void* surface)
@@ -975,7 +989,7 @@ private:
 		VkPipelineShaderStageCreateInfo[] shader_stages=[ vert_stage_info, frag_stage_info ];
 
 		auto binding_description=Vertex.GetBindingDescription();
-		auto attribute_descriptions=Vertex.GetAttributeDescriptions();
+		auto attribute_descriptions=Vertex.GetAttributeDescriptions2();
 
 		VkPipelineVertexInputStateCreateInfo vertex_input_info={
 			pNext: null,

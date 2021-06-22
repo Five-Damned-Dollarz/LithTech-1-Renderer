@@ -498,10 +498,7 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 	static assert(class_.offsetof==292);
 
 	//static assert(bsp.offsetof==298); // for type_id=WorldModel
-	//static assert(camera_width.offsetof==304); // for type_id=Camera
-	//static assert(fov_x.offsetof==312); // for type_id=Camera
 	//static assert(???.offsetof==316); polygon pointer?
-	//static assert(sprite_control.offsetof==320); // for type_id=Sprite, in-place? interface in AppHeaders/SpriteControl.h
 	//static assert(container_code.offsetof==428); // for type_id=Container
 
 	// possibly 300 byte stride for one of the object types?

@@ -3,7 +3,7 @@ module Bitmap;
 struct BitmapFileHeader
 {
 align(1):
-	ubyte[2] file_type=['B', 'M'];
+	immutable ubyte[2] file_type=['B', 'M'];
 	uint file_size;
 	uint reserved=0;
 	uint pixel_data_offset=BitmapFileHeader.sizeof+BitmapInfoHeader.sizeof;
