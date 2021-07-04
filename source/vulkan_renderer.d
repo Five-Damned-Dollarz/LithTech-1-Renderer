@@ -439,6 +439,10 @@ LAB_0004814b:
 		+/
 	}
 
+	/// 	It seems that I was working under incorrect assumptions that once a pipeline was bound it was there for the entire renderpass, this
+	/// seems to be false and means that we could obey Start3D/End3D functions to start and end a renderpass. I am unsure how Start2D/End2D
+	/// will fit, but in theory we could just do a g_IsIn3D check and bind a HUD pipeline, and draw (also have to re-bind the original back?)
+	///
 	/// FIXME: move most of this into RenderScene so we don't need to use g_RenderContext and try use a null reference during loading screens
 	override void SwapBuffers() // vkQueuePresent
 	{
@@ -464,8 +468,8 @@ LAB_0004814b:
 		VkSemaphore[] wait_semaphores=[ _is_image_available ];
 		VkSemaphore[] signal_semaphores=[ _is_render_finished ];
 
-		import Main: _is_in_3D, g_RenderContext;
-		//if (_is_in_3D)
+		import Main: g_IsIn3D, g_RenderContext;
+		//if (g_IsIn3D)
 		{
 			UpdateUniformBuffer(image_index);
 
@@ -1306,7 +1310,7 @@ private:
 			mat4_out[3][0] = 0f;
 			mat4_out[0][1] = cam_rot_x * fVar3;
 			mat4_out[1][1] = cam_rot_y * fVar4;
-			mat4_out[2][1] = cam_rot_z * z_mag + fVar3 * 0.0 + fVar4 * 0.0 + 0.0;
+			mat4_out[2][1] = cam_rot_z * z_mag; // + fVar3 * 0.0 + fVar4 * 0.0 + 0.0;
 			mat4_out[3][1] = 0f;
 			mat4_out[0][2] = cam_rot_x * fVar2;
 			mat4_out[1][2] = cam_rot_y * y_mag;
@@ -1318,9 +1322,50 @@ private:
 			mat4_out[3][3] = 1f;
 		}
 
+		void RotTransCamRe(vec3 pos, quat rot, ref mat4 mat4_out) // out[0..2][3] (position) is incorrect
+		{
+			// pos = -pos
+			float x_scale=1f, y_scale=-1f, z_scale=-1f; // rot scaling
+
+			float x2=rot.x*rot.x;
+			float y2=rot.y*rot.y;
+			float z2=rot.z*rot.z;
+			float w2=rot.w*rot.w;
+
+			mat4_out[0][0]=x2-y2-z2+w2;
+			mat4_out[1][1]=-(-x2+y2-z2+w2);
+			mat4_out[2][2]=-(-x2-y2+z2+w2);
+
+			float xy=rot.x*rot.y;
+			float zw=rot.z*rot.w;
+			mat4_out[0][1]=2f*(xy+zw);
+			mat4_out[1][0]=-2f*(xy-zw);
+
+			float xz=rot.x*rot.z;
+			float yw=rot.y*rot.w;
+			mat4_out[0][2]=2f*(xz-yw);
+			mat4_out[2][0]=-2f*(xz+yw);
+
+			float yz=rot.y*rot.z;
+			float xw=rot.x*rot.w;
+			mat4_out[1][2]=-2f*(yz+xw);
+			mat4_out[2][1]=-2f*(yz-xw);
+
+			float x=-pos.x, y=-pos.y, z=-pos.z;
+			mat4_out[0][3]=x-x*mat4_out[0][0]-y*mat4_out[0][1]-z*mat4_out[0][2];
+			mat4_out[1][3]=y-x*mat4_out[1][0]-y*mat4_out[1][1]-z*mat4_out[1][2];
+			mat4_out[2][3]=z-x*mat4_out[2][0]-y*mat4_out[2][1]-z*mat4_out[2][2];
+
+			mat4_out[3][0]=mat4_out[3][1]=mat4_out[3][2]=0f;
+			mat4_out[3][3]=1f;
+		}
+
 		mat4 test_camera_out;
 		test_camera_out=mat4.identity();
+		RotTransCamRe(camera_pos, camera_view, test_camera_out);
+		debug test_out.writeln(test_camera_out);
 		RotTransCam2(camera_pos, camera_view, test_camera_out);
+		debug test_out.writeln(test_camera_out);
 		test_camera_out.transpose();
 
 		ubo.view=test_camera_out;

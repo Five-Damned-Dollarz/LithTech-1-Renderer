@@ -87,7 +87,7 @@ __gshared RenderContext* g_RenderContext;
 __gshared File test_out;
 //__gshared ConVar[110] _convars;
 
-__gshared bool _is_in_3D=false;
+__gshared bool g_IsIn3D=false;
 
 export Mode* GetSupportedModes()
 {
@@ -399,7 +399,7 @@ int Start3D() // vkBeginCommandBuffer
 {
 	test();
 
-	_is_in_3D=true;
+	g_IsIn3D=true;
 	return true;
 }
 
@@ -407,13 +407,13 @@ int End3D() // vkEndCommandBuffer
 {
 	test();
 
-	_is_in_3D=false;
+	g_IsIn3D=false;
 	return true;
 }
 
 int IsIn3D()
 {
-	return _is_in_3D;
+	return g_IsIn3D;
 }
 
 int StartOptimized2D()
