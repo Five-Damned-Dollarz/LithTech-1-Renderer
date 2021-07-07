@@ -224,15 +224,16 @@ struct ModelObject
 
 	int ffff; // unknown?
 
-	static assert(texture.offsetof==296); // for type_id=Model, this /should/ be where the texture is, but doesn't seem to be?
+	static assert(texture.offsetof==296); // this /should/ be where the texture is, but doesn't seem to be?
 	static assert(anim_data.offsetof==300);
+	// 304 texture?
 	//static assert(???.offsetof==316); polygon pointer?
-	static assert(model_data.offsetof==320); // for type_id=Model, this might actually just be the raw model data
-	//static assert(model_flags.offsetoff==328); // for type_id=Model, 0x2 = is looping anim
-	static assert(model_frame.offsetof==336); // for type_id=Model, +4 = vec3[2] min/max
-	static assert(anim_current.offsetof==348); // for type_id=Model
-	static assert(unknown_sqrt.offsetof==372); // for type_id=Model, unknown sqrt(2) / 2 * 0.1 vals
-	static assert(unknown_nodes.offsetof==380); // for type_id=Model, array of ints? node related?
+	static assert(model_data.offsetof==320); // this might actually just be the raw model data
+	//static assert(model_flags.offsetoff==328); // 0x2 = is looping anim
+	static assert(model_frame.offsetof==336); // +4 = vec3[2] min/max
+	static assert(anim_current.offsetof==348);
+	static assert(unknown_sqrt.offsetof==372); // unknown sqrt(2) / 2 * 0.1 vals
+	static assert(unknown_nodes.offsetof==380); // array of ints? node related?
 }
 
 LTResult GetNextModelNode(ModelObject* obj, uint node, out uint next)

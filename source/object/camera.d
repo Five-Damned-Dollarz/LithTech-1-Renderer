@@ -20,8 +20,8 @@ struct CameraObject
 	float fov_y;
 	bool fullscreen;
 	
-	static assert(view_left.offsetof==296); // for type_id=Camera
-	static assert(camera_width.offsetof==304); // for type_id=Camera
-	static assert(fov_x.offsetof==312); // for type_id=Camera
-	static assert(fullscreen.offsetof==320); // for type_id=Camera
+	static assert(view_left.offsetof==296);
+	static assert(camera_width.offsetof==304);
+	static assert(fov_x.offsetof==312);
+	static assert(fullscreen.offsetof==320);
 }

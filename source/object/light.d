@@ -14,5 +14,5 @@ struct LightObject
 	
 	float radius;
 	
-	static assert(radius.offsetof==296); // for type_id=Light
+	static assert(radius.offsetof==296);
 }

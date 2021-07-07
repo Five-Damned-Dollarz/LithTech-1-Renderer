@@ -203,7 +203,7 @@ if (memoryType == -1) // not found; try fallback properties
 
 // Aligns given value up to nearest multiply of align value. For example: VmaAlignUp(11, 8) = 16.
 // Use types like uint32_t, uint64_t as T.
-static pragma(inline) T VmaAlignUp(T)(T val, T align_)
+pragma(inline) T VmaAlignUp(T)(T val, T align_)
 {
 	return (val + align_ - 1) / align_ * align_;
 }

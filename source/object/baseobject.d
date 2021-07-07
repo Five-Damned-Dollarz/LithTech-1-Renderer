@@ -85,19 +85,19 @@ align(2):
 struct Aggregate
 {
 	// This is so DirectEngine will skip over a C++ object's VTable.
-	void *cpp_4BytesForVTable;
+	void* cpp_4BytesForVTable;
 
 	Aggregate* m_pNextAggregate;
 
 	// Hook functions for the aggregate..
-	int function(BaseClass* pObject, Aggregate* pAggregate, int messageID, void *pData, float fData) m_EngineMessageFn;
+	int function(BaseClass* pObject, Aggregate* pAggregate, int messageID, void* pData, float fData) m_EngineMessageFn;
 	int function(BaseClass* pObject, Aggregate* pAggregate, BaseObject* hSender, int messageID, void* /+ HMESSAGEREAD* +/ hRead) m_ObjectMessageFn;
 }
 
 struct BaseClass
 {
 	// This is so DirectEngine will skip over a C++ object's VTable.
-	void *cpp_4BytesForVTable;
+	void* cpp_4BytesForVTable;
 
 	// The first aggregate in the linked list..
 	Aggregate* m_pFirstAggregate;
@@ -107,7 +107,7 @@ struct BaseClass
 	// ObjectToHandle() every time..
 	BaseObject* m_hObject;
 
-	void *m_pInternal;
+	void* m_pInternal;
 
 	// C++ only data...
 	ObjectType m_nType; // Type of object (see basedefs_de.h)
@@ -285,6 +285,10 @@ struct ClassDef
 
 	// Don't touch!
 	void*[2] m_pInternal;
+
+	//
+	void*[2] unknown;
+	BaseObject* static_obj;
 }
 
 struct ObjectClass

@@ -313,6 +313,7 @@ void* CreateContext(RenderContextInit* context_init)
 
 	WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
 	test_out.writeln(*bsp);
+	test_out.writeln(*bsp.owner_obj);
 
 	ObjectList* current=bsp.world_model_root.prev;
 	while(current!=bsp.world_model_root)
@@ -588,6 +589,14 @@ int RenderScene(SceneDesc* scene_desc)
 					//test_out.writeln((cast(Buffer*)model.unknown_10[1])[0..8]);
 				}+/
 			}
+			else if (object_inst.type_id==ObjectType.WorldModel || object_inst.type_id==ObjectType.Container)
+			{
+				import Objects.WorldModel;
+				BaseObject* temp_obj=ToWorldModel(object_inst).bsp_data.objs[0].owner_obj;
+				test_out.writeln("WorldModel/Container obj: ", temp_obj);
+				if (temp_obj)
+					test_out.writeln(*temp_obj);
+			}
 
 			if (object_inst.type_id==ObjectType.Model && object_inst.class_!=null)
 			{
@@ -626,7 +635,7 @@ int RenderScene(SceneDesc* scene_desc)
 			ProcessNode(node.next[1]);
 	}
 
-	//ProcessNode(root_node);
+	ProcessNode(root_node);
 
 	if (_renderer.is_init!=0)
 	{

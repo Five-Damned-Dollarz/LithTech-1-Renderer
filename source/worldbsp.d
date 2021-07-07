@@ -284,7 +284,11 @@ struct WorldBSP
 
 	/// No clue if this is actually here, or pointed to
 	int[26] unknown_10;
-	void*[2] unknown_11;
+
+	BaseObject* owner_obj; // will always be (type_id==WorldModel || type_id==Container); EXCEPTION: g_RenderContext.main_world.world_bsp's will always be type_id==Normal
+		// sometimes this can be null, don't know why this happens!
+
+	void* unknown_11;
 
 	// possibly skybox related?
 	vec3 extents_min;
@@ -296,8 +300,9 @@ struct WorldBSP
 	uint info_flags;
 	uint unknown_count;
 
-	//int unknown_12;
-	float[4] unknown_12;
+	float unknown_12;
+
+	vec3 unknown_vector; // some sort of translation?
 
 	ubyte* lightmap_data; // no size for this; polygons[0..polygon_count].select(x => x.flags & LightMap (0x80)) [w 1B, h 1B, data (w * h * 2B)] as RGB565 packed short
 
@@ -309,4 +314,5 @@ struct WorldBSP
 	PBlockTable pblock_table;
 
 	static assert(this.sizeof==360);
+	static assert(owner_obj.offsetof==216);
 }

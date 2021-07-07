@@ -49,7 +49,7 @@ struct RenderContextInit
 	void*[48] buf2;
 }
 
-struct RenderContext // this is whatever we want
+struct RenderContext // this is whatever we want; should probably save lightmaps in here
 {
 	Buffer* unknown_1;
 	int unknown_2; // 0x0000FFFF? "framecode"

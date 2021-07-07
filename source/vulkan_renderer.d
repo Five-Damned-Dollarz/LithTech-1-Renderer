@@ -6,8 +6,7 @@ import Memory;
 //import vk_mem_alloc;
 
 import erupted;
-import erupted.platform_extensions;
-mixin Platform_Extensions!USE_PLATFORM_WIN32_KHR;
+import vulkan_windows;
 
 import std.stdio;
 import core.sys.windows.windows;
@@ -300,15 +299,12 @@ public:
 		test_out.writeln("Vulkan done.");
 	}
 
-	float rot=0f;
 	vec3 camera_pos;
 	quat camera_view=quat.identity;
 	override void RenderScene(SceneDesc* scene_desc) // vkCmd*
 	{
 		camera_pos=vec3(scene_desc.camera_position);
 		camera_view=quat(scene_desc.camera_rotation[3], vec3(scene_desc.camera_rotation[0..3]));
-
-		rot+=scene_desc.frame_delta;
 
 		/+
 		uVar9 = 0;
@@ -682,7 +678,7 @@ private:
 		};
 
 		vkCreateInstance(&create_info, null, &g_VkInstance);
-		loadInstanceLevelFunctions(g_VkInstance);
+		loadInstanceLevelFunctionsExt(g_VkInstance);
 
 		return vkCreateDebugUtilsMessengerEXT(g_VkInstance, &debug_create_info, null, &debug_messenger);
 	}
@@ -777,7 +773,7 @@ private:
 		};
 
 		vkCreateDevice(g_PhysicalDevice, &create_info, null, &g_Device);
-		loadDeviceLevelFunctions(g_VkInstance);
+		loadDeviceLevelFunctionsExt(g_VkInstance);
 
 		vkGetDeviceQueue(g_Device, queue_family.graphics_family, 0, &_graphics_queue);
 		vkGetDeviceQueue(g_Device, queue_family.present_family, 0, &_present_queue);
