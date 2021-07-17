@@ -1260,68 +1260,9 @@ private:
 		// x = v; y = h; z = roll
 		ubo.view=ubo.view.identity();
 
-		void RotTransCam2(vec3 pos, quat rot, ref mat4 mat4_out)
+		void RotTransCamera(vec3 pos, quat rot, out mat4 mat4_out)
 		{
-			float cam_rot_x = rot.x;
-			float cam_rot_y = rot.y;
-			float cam_rot_z = rot.z;
-			float cam_rot_w = rot.w;
-			float x2_mag = 2.0 / (cam_rot_w * cam_rot_w +
-										 cam_rot_x * cam_rot_x + cam_rot_y * cam_rot_y + cam_rot_z * cam_rot_z);
-			float z_mag = cam_rot_z * x2_mag;
-			float y_mag = cam_rot_y * x2_mag;
-			float w_x_mag = cam_rot_w * cam_rot_x * x2_mag;
-			x2_mag = cam_rot_x * cam_rot_x * x2_mag;
-			float fVar7 = cam_rot_x * y_mag + cam_rot_w * z_mag;
-			float fVar6 = cam_rot_x * y_mag - cam_rot_w * z_mag;
-			float fVar1 = 1.0 - (y_mag * cam_rot_y + cam_rot_z * z_mag);
-			float fVar11 = cam_rot_x * z_mag + cam_rot_w * y_mag;
-			cam_rot_z = 1.0 - (x2_mag + cam_rot_z * z_mag);
-			cam_rot_x = cam_rot_x * z_mag - cam_rot_w * y_mag;
-			float fVar10 = 1.0 - (x2_mag + y_mag * cam_rot_y);
-			float fVar12 = cam_rot_y * z_mag - w_x_mag;
-			w_x_mag = cam_rot_y * z_mag + w_x_mag;
-
-			float cam_pos_x = -pos.x;
-			float cam_pos_y = -pos.y;
-			float cam_pos_z = -pos.z;
-			float fVar8 = fVar1;
-			float fVar5 = fVar6;
-			float fVar9 = fVar11;
-			float fVar3 = fVar7;
-			float fVar2 = cam_rot_x;
-			float fVar4 = cam_rot_z;
-			z_mag = fVar12;
-			y_mag = w_x_mag;
-			x2_mag = fVar10;
-			cam_rot_w = fVar1 * cam_pos_x + fVar7 * cam_pos_y + cam_rot_x * cam_pos_z + 0.0;
-			fVar1 = w_x_mag * cam_pos_z + fVar6 * cam_pos_x + cam_rot_z * cam_pos_y + 0.0;
-			fVar6 = fVar10 * cam_pos_z + fVar11 * cam_pos_x + fVar12 * cam_pos_y + 0.0;
-			cam_rot_x = 1f;
-			cam_rot_y = -1f;
-			cam_rot_z = -1f;
-			mat4_out[0][0] = cam_rot_x * fVar8;
-			mat4_out[1][0] = cam_rot_y * fVar5;
-			mat4_out[2][0] = cam_rot_z * fVar9;
-			mat4_out[3][0] = 0f;
-			mat4_out[0][1] = cam_rot_x * fVar3;
-			mat4_out[1][1] = cam_rot_y * fVar4;
-			mat4_out[2][1] = cam_rot_z * z_mag; // + fVar3 * 0.0 + fVar4 * 0.0 + 0.0;
-			mat4_out[3][1] = 0f;
-			mat4_out[0][2] = cam_rot_x * fVar2;
-			mat4_out[1][2] = cam_rot_y * y_mag;
-			mat4_out[2][2] = cam_rot_z * x2_mag;
-			mat4_out[3][2] = 0f;
-			mat4_out[0][3] = cam_rot_x * cam_rot_w;
-			mat4_out[1][3] = cam_rot_y * fVar1;
-			mat4_out[2][3] = cam_rot_z * fVar6;
-			mat4_out[3][3] = 1f;
-		}
-
-		void RotTransCamRe(vec3 pos, quat rot, ref mat4 mat4_out) // out[0..2][3] (position) is incorrect
-		{
-			// pos = -pos
-			float x_scale=1f, y_scale=-1f, z_scale=-1f; // rot scaling
+			float x_scale=1f, y_scale=-1f, z_scale=-1f; // rotation scaling
 
 			float x2=rot.x*rot.x;
 			float y2=rot.y*rot.y;
@@ -1352,16 +1293,18 @@ private:
 			mat4_out[1][3]=y-x*mat4_out[1][0]-y*mat4_out[1][1]-z*mat4_out[1][2];
 			mat4_out[2][3]=z-x*mat4_out[2][0]-y*mat4_out[2][1]-z*mat4_out[2][2];
 
+			// this isn't an exact match to the original renderer, but it's 3-4 decimal accurate, which is probably fine
+			mat4_out[0][3]=-(mat4_out[0][3]-x);
+			mat4_out[1][3]=-(mat4_out[1][3]-y);
+			mat4_out[2][3]=-(mat4_out[2][3]-z);
+
 			mat4_out[3][0]=mat4_out[3][1]=mat4_out[3][2]=0f;
 			mat4_out[3][3]=1f;
 		}
 
 		mat4 test_camera_out;
 		test_camera_out=mat4.identity();
-		RotTransCamRe(camera_pos, camera_view, test_camera_out);
-		debug test_out.writeln(test_camera_out);
-		RotTransCam2(camera_pos, camera_view, test_camera_out);
-		debug test_out.writeln(test_camera_out);
+		RotTransCamera(camera_pos, camera_view, test_camera_out);
 		test_camera_out.transpose();
 
 		ubo.view=test_camera_out;
