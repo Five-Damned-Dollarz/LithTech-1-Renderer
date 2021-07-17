@@ -2,8 +2,8 @@ module Texture;
 
 import RendererTypes: DLink, Buffer;
 
-enum uint DTXVersion=-2;
-enum DTXMipMapCount=4;
+enum uint DtxVersion=-2;
+enum DtxMipMapCount=4;
 
 struct Colour
 {
@@ -15,7 +15,7 @@ struct Colour
 	}
 }
 
-enum DTXFlags : uint
+enum DtxFlags : uint
 {
 	FullBrite=0x1,
 	AlphaMasks=0x2,
@@ -23,14 +23,14 @@ enum DTXFlags : uint
 	Unknown2=0x8
 }
 
-struct DTXHeader
+struct DtxHeader
 {
 	int id;
 	int version_;
 	ushort width;
 	ushort height;
 	ushort mipmap_count;
-	DTXFlags flags;
+	DtxFlags flags;
 	uint flags_other; // defined by the game/object.lto
 	short group;
 	short mipmaps_used_count; // 0 = 4?
@@ -41,7 +41,7 @@ struct DTXHeader
 struct TextureData
 {
 	uint unknown_1; // maybe a type id?
-	DTXHeader header;
+	DtxHeader header;
 
 	int unknown_2;
 	DLink unknown_3;
@@ -70,7 +70,7 @@ struct TextureData
 		ubyte* pixels;
 		ubyte* alpha;
 	}
-	MipMapData[DTXMipMapCount] mipmap_data;
+	MipMapData[DtxMipMapCount] mipmap_data;
 }
 
 struct SharedTexture
@@ -111,7 +111,7 @@ ubyte[] TransitionTexturePixels(TextureData* texture, out int width, out int hei
 	{
 		Colour pixel_colour=texture.palette.colours[pixel];
 		ubyte pixel_alpha=0xFF;
-		if (texture.header.flags & DTXFlags.AlphaMasks)
+		if (texture.header.flags & DtxFlags.AlphaMasks)
 		{
 			pixel_alpha=texture.mipmap_data[0].alpha[i/2];
 			if (i & 1)

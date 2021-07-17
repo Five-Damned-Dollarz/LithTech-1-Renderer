@@ -1,4 +1,4 @@
-module WorldBSP;
+module WorldBsp;
 
 import RendererTypes: DLink, DString, Buffer;
 import Texture;
@@ -77,7 +77,7 @@ struct Node
 	Plane* planes;
 	int side; // 0 = front, 6 = back
 	Leaf* viewer_leaf; // leaf a camera's currently in? mostly null
-	WorldBSP* bsp;
+	WorldBsp* bsp;
 	vec3 center;
 	float radius;
 	ObjectList* objects; // unsure
@@ -129,7 +129,7 @@ struct Leaf
 	Buffer* unknown_2; // start? -- in place DLink?
 	Buffer* unknown_3; // end?
 	Buffer* unknown_4; // next, if start != end?
-	Buffer* unknown_5; // pointer into WorldBSP.unknown_2 or copy node's polygon list pointer? 4 byte stride
+	Buffer* unknown_5; // pointer into WorldBsp.unknown_2 or copy node's polygon list pointer? 4 byte stride
 	int unknown_6; // set to 0 at the start of each frame draw; unknown_5 count?
 	Buffer* unknown_7;
 	int unknown_8; // leaf list id?
@@ -188,7 +188,7 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 struct MainWorld
 {
 	uint memory_used;
-	WorldBSP* world_bsp;
+	WorldBsp* world_bsp;
 
 	ushort[2] unknown_2; // not an address?
 	int unknown_2_count;
@@ -231,14 +231,14 @@ struct MainWorld
 
 struct WorldData
 {
-	WorldBSP*[2] objs; // orig + transformed?
+	WorldBsp*[2] objs; // orig + transformed?
 
 	// DLink?; may not even be part of this struct at all?
 	void*[2] refs; //  [0, 1] = ???
 	WorldData* self;
 }
 
-struct WorldBSP
+struct WorldBsp
 {
 	uint memory_used; // memory use, maybe?
 	void* next_section; // yes, in the map.dat...
@@ -272,7 +272,7 @@ struct WorldBSP
 	Polygon** polygons; // polygons?
 	uint polygon_count;
 
-	vec4* points; // w is set to 0 on frame start when called from WorldBSP.Points[n]
+	vec4* points; // w is set to 0 on frame start when called from WorldBsp.Points[n]
 	uint point_count;
 
 	Portal* portals;

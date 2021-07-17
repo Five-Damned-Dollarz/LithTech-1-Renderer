@@ -324,7 +324,7 @@ public:
 		+/
 	}
 
-	import WorldBSP: Node;
+	import WorldBsp: Node;
 	private void DrawBSP(Node* node)
 	{
 		/*if (node.next.flags & 8)
@@ -502,7 +502,7 @@ LAB_0004814b:
 
 				if (g_RenderContext !is null)
 				{
-					WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
+					WorldBsp* bsp=g_RenderContext.main_world.world_bsp;
 
 					size_t index_start=0;
 
@@ -1829,10 +1829,10 @@ private:
 		_depth_image_view=CreateImageView(_depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
 	}
 
-	import WorldBSP;
+	import WorldBsp;
 
 	uint index_count=0;
-	public void CreateBSPVertexBuffer(WorldBSP* bsp)
+	public void CreateBspVertexBuffer(WorldBsp* bsp)
 	{
 		test_out.writeln("-- Begin create BSP");
 		//

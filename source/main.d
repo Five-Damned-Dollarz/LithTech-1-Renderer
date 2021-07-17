@@ -12,7 +12,7 @@ import core.stdc.string;
 import RendererTypes;
 import RendererMain;
 import VulkanRender;
-import WorldBSP;
+import WorldBsp;
 import Texture;
 import Objects.BaseObject;
 
@@ -308,10 +308,10 @@ void* CreateContext(RenderContextInit* context_init)
 	g_RenderContext=cast(RenderContext*)calloc(1, RenderContext.sizeof);
 	g_RenderContext.main_world=context_init.main_world;
 
-	import WorldBSP;
+	import WorldBsp;
 	test_out.writeln(*g_RenderContext.main_world);
 
-	WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
+	WorldBsp* bsp=g_RenderContext.main_world.world_bsp;
 	test_out.writeln(*bsp);
 	test_out.writeln(*bsp.owner_obj);
 
@@ -377,7 +377,7 @@ void* CreateContext(RenderContextInit* context_init)
 
 	//TraverseNode(bsp.node_root);
 
-	(cast(VulkanRenderer)_renderer_inst).CreateBSPVertexBuffer(g_RenderContext.main_world.world_bsp);
+	(cast(VulkanRenderer)_renderer_inst).CreateBspVertexBuffer(g_RenderContext.main_world.world_bsp);
 
 	return g_RenderContext; // softlocks at load screen if this returns null
 }
@@ -437,7 +437,7 @@ int RenderScene(SceneDesc* scene_desc)
 {
 	test();
 
-	WorldBSP* bsp=g_RenderContext.main_world.world_bsp;
+	WorldBsp* bsp=g_RenderContext.main_world.world_bsp;
 	test_out.writeln(*bsp);
 
 	Node* root_node=bsp.node_root;
@@ -597,6 +597,19 @@ int RenderScene(SceneDesc* scene_desc)
 				if (temp_obj)
 					test_out.writeln(*temp_obj);
 			}
+			else if (object_inst.type_id==ObjectType.ParticleSystem)
+			{
+				import Objects.ParticleSystem;
+				ParticleSystemObject* part_sys=object_inst.ToParticleSystem();
+				test_out.writeln(*part_sys);
+				/+test_out.writeln(&part_sys.null_particle, " ", part_sys.null_particle);
+				test_out.writeln(part_sys.null_particle.m_pNext, " ", part_sys.null_particle.m_pNext[0..4]);
+				test_out.writeln(part_sys.null_particle.prev, " ", part_sys.null_particle.prev[0..4]);+/
+				/+test_out.writeln(*part_sys.particles_alloc);
+				test_out.writeln((cast(Buffer*)part_sys.particles_alloc.buf1)[0..1]);
+				test_out.writeln((cast(Buffer*)part_sys.particles_alloc.buf2)[0..1]);+/
+				test_out.writeln(part_sys.unknown_ref[0..1]);
+			}
 
 			if (object_inst.type_id==ObjectType.Model && object_inst.class_!=null)
 			{
@@ -667,7 +680,7 @@ int RenderScene(SceneDesc* scene_desc)
 	return 0;
 }
 
-void RenderCommand(int argc, char** args) // this is for RCom console command
+void RenderCommand(int argc, const char** args) // this is for RCom console command
 {
 	test();
 

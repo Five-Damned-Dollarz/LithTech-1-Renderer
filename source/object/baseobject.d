@@ -1,7 +1,7 @@
 module Objects.BaseObject;
 
 import RendererTypes: DLink, Buffer;
-import WorldBSP;
+import WorldBsp;
 
 import gl3n.linalg;
 
@@ -17,7 +17,7 @@ struct ObjectList
 	static assert(this.sizeof==24);
 }
 
-enum ObjState : uint
+enum ObjectState : uint
 {
 	Active=0x00, // Normal healthy object.
 	Inactive=0x08, // Inactive (no updates, physics, or touch notifies).
@@ -468,7 +468,7 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 
 	Buffer* self1;
 
-	ObjState state;
+	ObjectState state;
 
 	void*buf2a; // unknown
 	float[3] unknown_10;

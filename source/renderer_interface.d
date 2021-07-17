@@ -1,6 +1,6 @@
 module RendererTypes;
 
-import WorldBSP;
+import WorldBsp;
 import Texture;
 import Objects.BaseObject;
 import vk.Surface;
@@ -224,7 +224,7 @@ struct RenderDLL
 	void function() EndOptimized2D;
 	int function() IsInOptimized2D;
 	int function(SceneDesc*) RenderScene;
-	void function(int argc, char** args) RenderCommand;
+	void function(int argc, const char** args) RenderCommand;
 	void* function(const char*) GetHook; // must handle "LPDIRECTDRAW" (IDirectDraw4*) and "BACKBUFFER" (IDirectDrawSurface4*) to support Smack video
 	void function() SwapBuffers;
 	int function() GetInfoFlags;
