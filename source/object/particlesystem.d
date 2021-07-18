@@ -47,7 +47,7 @@ struct ParticleSystemObject
 		void*[9] buf;
 		static assert(this.sizeof==36);
 	}
-	Unknown36Stride* unknown_ref; // 36 byte stride, no idea what this is used for
+	Unknown36Stride* unknown_ref; // 36 byte stride, SharedTexture*?
 
 	ubyte[3] software_colour;
 	void*[6] buf;

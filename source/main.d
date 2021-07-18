@@ -516,6 +516,7 @@ int RenderScene(SceneDesc* scene_desc)
 				test_out.TraverseModel(obj_.model_data.unknown_5);
 				test_out.writeln("Cur anim: ", obj_.anim_current.name.fromStringz);
 
+				test_out.writeln("Texture: ", cast(void*)obj_.texture);
 				if (obj_.texture)
 				{
 					test_out.writeln("Texture: ", *obj_.texture);
@@ -609,6 +610,29 @@ int RenderScene(SceneDesc* scene_desc)
 				test_out.writeln((cast(Buffer*)part_sys.particles_alloc.buf1)[0..1]);
 				test_out.writeln((cast(Buffer*)part_sys.particles_alloc.buf2)[0..1]);+/
 				test_out.writeln(part_sys.unknown_ref[0..1]);
+				test_out.writeln((cast(SharedTexture*)part_sys.unknown_ref)[0..1]);
+				test_out.writeln(*cast(Buffer*)(cast(SharedTexture*)part_sys.unknown_ref).render_data);
+			}
+			else if (object_inst.type_id==ObjectType.Sprite)
+			{
+				import Objects.Sprite;
+				SpriteObject* obj_=object_inst.ToSprite();
+				test_out.writeln(*obj_);
+
+				if (obj_.texture_ref)
+				{
+					test_out.writeln(**obj_.texture_ref);
+					test_out.writeln(cast(void*)((**obj_.texture_ref).render_data));
+					//TextureData* texture_data=_renderer.GetTexture(*obj_.texture_ref, null);
+					//if (texture_data) test_out.writeln(*texture_data);
+					//_renderer.FreeTexture(*obj_.texture_ref);
+				}
+			}
+			else if (object_inst.type_id==ObjectType.LineSystem)
+			{
+				import Objects.LineSystem;
+				LineSystemObject* obj_=object_inst.ToLineSystem();
+				test_out.writeln(*obj_);
 			}
 
 			if (object_inst.type_id==ObjectType.Model && object_inst.class_!=null)

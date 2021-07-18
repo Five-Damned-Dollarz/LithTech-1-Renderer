@@ -1,4 +1,4 @@
-# d_ren - A LithTech 1 Renderer
+# d_ren - A Prototype LithTech 1 Renderer
 
 ![Screenshot](doc/d_ren_current.png)
 
@@ -8,7 +8,7 @@ Note:
 - There's a bunch of SDL references that do nothing but need to be removed, so you still need SDL2.dll to run it (2021/07).
 
 ## The Interesting Parts
-*source/renderer_interface.d* and *source/object/xxx.d* are where the most useful parts are for most people interested in working with LithTech 1.0, it should be trivial for anyone familiar with C-like languages to translate them from D to any preferred language.
+*source/renderer_interface.d* and *source/object/\*.d* are where the most useful parts are for most people interested in working with LithTech 1.0, it should be trivial for anyone familiar with C-like languages to translate them from D to any preferred language.
 
 ## Building
 Due to LithTech 1 being exclusively 32-bit, the renderer must be built in 32-bit: `dub build --arch="x86_mscoff"`, attempting to build in 64-bit will fail with one of the many static asserts I've placed to ensure correct alignments in shared structures.

@@ -26,3 +26,16 @@ struct WorldModelObject
 
 	static assert(bsp_data.offsetof==296);
 }
+
+struct ContainerObject
+{
+	alias base this;
+	WorldModelObject base;
+
+	void*[16] buf;
+
+	short container_code;
+
+	//static assert(this.sizeof);
+	static assert(container_code.offsetof==428);
+}

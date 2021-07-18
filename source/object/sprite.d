@@ -2,6 +2,7 @@ module Objects.Sprite;
 
 import Objects.BaseObject;
 import RendererTypes: DLink;
+import Texture: SharedTexture;
 
 SpriteObject* ToSprite(BaseObject* obj)
 {
@@ -51,7 +52,7 @@ enum SpriteControlFlags
 	Loop=(1<<1),
 }
 
-extern(C++, class) abstract class SpriteControl // from AppHeaders/SpriteControl.h
+extern(C++, class) abstract class /+ struct? +/ SpriteControl // from AppHeaders/SpriteControl.h
 {
 public:
 	int GetNumAnims(ref int nAnims);
@@ -71,11 +72,16 @@ struct SpriteObject
 
 	SpriteData* sprite_data;
 
-	void*[5] buf;
+	void* buf0;
+	SharedTexture** texture_ref; // this seems possible, but unsure
+	void*[3] buf;
+
 	SpriteControl* sprite_control;
 	void* self_ref;
 	
+	static assert(this.sizeof==328);
 	static assert(sprite_data.offsetof==296); // probably the actual sprite data: texture list, etc.
+	static assert(texture_ref.offsetof==304);
 	//static assert(???.offsetof==316); // init to 0xFFFFFFFF
 	static assert(sprite_control.offsetof==320); // in-place? interface in AppHeaders/SpriteControl.h
 	static assert(self_ref.offsetof==324); // self ref

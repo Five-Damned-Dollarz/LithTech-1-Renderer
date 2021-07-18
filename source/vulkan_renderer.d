@@ -1262,7 +1262,7 @@ private:
 
 		void RotTransCamera(vec3 pos, quat rot, out mat4 mat4_out)
 		{
-			float x_scale=1f, y_scale=-1f, z_scale=-1f; // rotation scaling
+			//float x_scale=1f, y_scale=-1f, z_scale=-1f; // rotation scaling
 
 			float x2=rot.x*rot.x;
 			float y2=rot.y*rot.y;
