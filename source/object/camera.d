@@ -2,6 +2,8 @@ module Objects.Camera;
 
 import Objects.BaseObject;
 
+import RendererTypes: Rect;
+
 CameraObject* ToCamera(BaseObject* obj)
 {
 	return cast(CameraObject*)obj;
@@ -12,20 +14,17 @@ struct CameraObject
 	alias base this;
 	BaseObject base;
 	
-	float view_left;
-	float view_top;
-	float camera_width;
-	float camera_height;
+	Rect view_rect;
 	float fov_x;
 	float fov_y;
 	bool fullscreen;
 
-	void*[3] buf; // init to 0
+	void*[3] unknown; // init to 0, are sent to SceneDesc.camera_unknown[0..3] in ClientDE.RenderCamera(cam_obj)
 	
 	static assert(this.sizeof==336);
-	static assert(view_left.offsetof==296);
-	static assert(camera_width.offsetof==304);
+	static assert(view_rect.offsetof+view_rect.x1.offsetof==296);
+	static assert(view_rect.offsetof+view_rect.x2.offsetof==304);
 	static assert(fov_x.offsetof==312);
 	static assert(fullscreen.offsetof==320);
-	//static assert(unknown.offsetof==332);
+	static assert(unknown.offsetof==324);
 }

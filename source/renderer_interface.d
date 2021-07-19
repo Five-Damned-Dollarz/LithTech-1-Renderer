@@ -90,7 +90,7 @@ struct SceneDesc
 	// unknown
 	float[9] unkown_matrix;
 	float[3] unknown_vector;
-	BaseObject** unknown_array_2; // world model array?
+	BaseObject** unknown_array_2; // world model array? limited to max 30?
 	int unknown_count;
 
 	// camera stuff

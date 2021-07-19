@@ -100,6 +100,8 @@ enum SurfaceFlags : uint
 	Hullmaker=0x400,
 	AlwaysLightMap=0x800,
 	DirectionalLight=0x1000,
+
+	Unknown=0x8000, // checked by renderer but unclear function
 }
 
 struct Surface
