@@ -186,6 +186,11 @@ ModelObject* ToModel(BaseObject* obj)
 	return cast(ModelObject*)obj;
 }
 
+enum ModelFlags : uint
+{
+	Looping=0x2,
+}
+
 struct ModelObject
 {
 	alias base this;
@@ -202,7 +207,7 @@ struct ModelObject
 
 	void* buf1;
 
-	short[2] frame_code; // byte | 0x1 | 0x2
+	ModelFlags model_flags;
 	ModelAnim* buf1a; // mirrors anim_current
 	AnimKeyframe* model_frame; // mirrors anim_curr_keyframes?
 
@@ -229,7 +234,7 @@ struct ModelObject
 	// 304 texture?
 	//static assert(???.offsetof==316); polygon pointer?
 	static assert(model_data.offsetof==320); // this might actually just be the raw model data
-	//static assert(model_flags.offsetoff==328); // 0x2 = is looping anim
+	static assert(model_flags.offsetof==328);
 	static assert(model_frame.offsetof==336); // +4 = vec3[2] min/max
 	static assert(anim_current.offsetof==348);
 	static assert(unknown_sqrt.offsetof==372); // unknown sqrt(2) / 2 * 0.1 vals
@@ -238,7 +243,7 @@ struct ModelObject
 
 LTResult GetNextModelNode(ModelObject* obj, uint node, out uint next)
 {
-	if ((obj!=null) && (obj.type_id==1))
+	if ((obj!=null) && (obj.type_id==ObjectType.Model))
 	{
 		if (node+1>obj.model_data.node_count)
 		{
@@ -254,7 +259,7 @@ LTResult GetNextModelNode(ModelObject* obj, uint node, out uint next)
 
 LTResult GetModelNodeName(ModelObject* obj, uint node, char* name, int max_length)
 {
-	if ((node==0) || (max_length==0) || (obj==null) || (obj.type_id!=1))
+	if ((node==0) || (max_length==0) || (obj==null) || (obj.type_id!=ObjectType.Model))
 	{
 		return LTResult.Error; // assert(0);
 	}
@@ -272,7 +277,7 @@ LTResult GetModelNodeName(ModelObject* obj, uint node, char* name, int max_lengt
 
 int GetModelAnimation(ModelObject* obj)
 {
-	if ((obj!=null) && (obj.type_id==1))
+	if ((obj!=null) && (obj.type_id==ObjectType.Model))
 	{
 		return (cast(int)obj.anim_current-cast(int)obj.model_data.animations)/ModelAnim.sizeof;
 	}
@@ -282,9 +287,8 @@ int GetModelAnimation(ModelObject* obj)
 
 bool GetModelLooping(ModelObject* obj)
 {
-	if ((obj!=null) && (obj.type_id==1)) {
-		return cast(bool)(*cast(int*)(cast(int)obj+328) >> 1 & 1);
-	}
+	if ((obj!=null) && (obj.type_id==ObjectType.Model))
+		return cast(bool)(obj.model_flags & ModelFlags.Looping);
 
 	return 0;
 }

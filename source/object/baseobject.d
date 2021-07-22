@@ -325,7 +325,7 @@ struct Attachment
 	Attachment* next;
 }
 
-enum ModelFlags : uint
+enum ObjectFlags : uint
 {
 	Visible=0x1,
 	HasShadows=0x2,
@@ -433,7 +433,7 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 
 	BaseObject* root; // UnknownList? static assert(root.offsetof==36)
 
-	ModelFlags flags;
+	ObjectFlags flags;
 	uint user_flags;
 
 	ubyte[4] colour;
