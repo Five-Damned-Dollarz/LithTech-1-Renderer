@@ -184,6 +184,20 @@ enum ClearFlags : uint
 	Depth=0x2,
 }
 
+enum GlobalPanType
+{
+	SkyShadow=0,
+	FogLayer,
+	Count
+}
+
+struct GlobalPan
+{
+	SharedTexture* texture_ref;
+	float offset_x, offset_y;
+	float scale_x, scale_y;
+}
+
 extern(C)
 struct RenderDLL
 {
@@ -245,13 +259,7 @@ struct RenderDLL
 	void function() ReadConsoleVariables;
 	void* unknown_3;
 	SharedTexture* envmap_texture;
-	void* panning_sky_info;
-	void*[4] unknown_arrays; // somehow grouped
-	void* unknown_array;
-	int unknown_4;
-	int unknown_5;
-	int unknown_6;
-	int unknown_7;
+	GlobalPan[GlobalPanType.Count] global_pans;
 	HMODULE render_dll_handle;
 	DLink* unknown_8; // 364 bytes, array of 30 DLinks + an int. Looks very much like palette data; cast(DEPalette*)unknown_8[i].data - Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
 	uint unknown_9; // unknown
