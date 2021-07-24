@@ -78,9 +78,9 @@ struct SceneDesc
 	float[3] unknown_1;
 	float[3] unknown_2;
 	RenderContext* render_context;
-	float[3] global_light_colour;
-	float[3] global_light_direction;
-	float[3] global_light_scale;
+	vec3 global_light_colour;
+	vec3 global_light_direction;
+	vec3 global_light_scale;
 	float[3] camera_unknown;
 
 	// frame timing
@@ -171,13 +171,6 @@ struct DString
 	static assert(data.offsetof==20);
 }
 
-struct DEPalette
-{
-	DLink link;
-	int[3] unknown;
-	Colour[256] colours;
-}
-
 enum ClearFlags : uint
 {
 	Colour=0x1,
@@ -194,8 +187,8 @@ enum GlobalPanType
 struct GlobalPan
 {
 	SharedTexture* texture_ref;
-	float offset_x, offset_y;
-	float scale_x, scale_y;
+	vec2 offset;
+	vec2 scale;
 }
 
 extern(C)
@@ -204,10 +197,12 @@ struct RenderDLL
 	BaseObject* function(BaseObject*, Attachment*) GetAttachmentObject; // called by ProcessAttachment
 	TextureData* function(SharedTexture*, void* /+ out bool? +/) GetTexture;
 	void function(SharedTexture*) FreeTexture;
-	void function() UnknownFunc_1;
-	void function() UnknownFunc_2;
-	void function(/+ DEPalette*? +/) UnknownFunc_3; // returns DEPalette*?
-	void function() UnknownFunc_4;
+	/+ --- Fairly confident these are palette functions +/
+	void* function(DEPalette*) UnknownFunc_1; // unused? return *(param_1 + 0x8)
+	Colour* function(DEPalette*) GetPaletteColours; // return (param_1 + 0x18)
+	void* function(DEPalette*) GetPaletteUnknownFunc; // returns DEPalette*? return *(param_1 + 0xC)
+	void function(DEPalette*, void*) SetPaletteUnknownFunc; // void return; *(param_1 + 0xC) = param2
+	/+ --- +/
 	void function(const char*) RunConsoleString;
 	void function(const char* pMsg, ...) CPrint;
 	void* function(const char*) GetConsoleVar;
@@ -261,6 +256,15 @@ struct RenderDLL
 	SharedTexture* envmap_texture;
 	GlobalPan[GlobalPanType.Count] global_pans;
 	HMODULE render_dll_handle;
-	DLink* unknown_8; // 364 bytes, array of 30 DLinks + an int. Looks very much like palette data; cast(DEPalette*)unknown_8[i].data - Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
+
+	struct PaletteList
+	{
+		DLink[30] palettes; // *cast(DEPalette*)palettes.data
+		uint count;
+
+		static assert(this.sizeof==364);
+	}
+	PaletteList* palette_list; // Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
+
 	uint unknown_9; // unknown
 }

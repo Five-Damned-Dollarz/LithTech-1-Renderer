@@ -15,6 +15,13 @@ struct Colour
 	}
 }
 
+struct DEPalette
+{
+	DLink link;
+	int[3] unknown;
+	Colour[256] colours;
+}
+
 enum DtxFlags : uint
 {
 	FullBrite=0x1,
@@ -48,13 +55,7 @@ struct TextureData
 
 	int unknown_4a; // size in memory?
 
-	struct Palette
-	{
-		DLink link; // unknown
-		void*[3] unknown;
-		Colour[256] colours;
-	}
-	Palette* palette;
+	DEPalette* palette;
 
 	void* unknown_4b;
 

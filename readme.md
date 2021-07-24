@@ -28,3 +28,6 @@ Uses [ErupteD](https://github.com/ParticlePeter/ErupteD) as the binding.
 Yes. See the first note above; there's a lot of text flushing every frame to make sure I get the information I want written when I cause a crash trying to discover new things.
 
 I also did a 5 minute hack change to make textures work *right now* that obliterated Vulkan's performance, and haven't really given any thought to restructuring everything to support a more modern rendering style.
+
+## Observations
+- I suspect LithTech 1 will need a hack to work on resolutions with a width or height above 5000px due to checks at Client.exe:0x0040b09a which will prevent a surface from being created.
