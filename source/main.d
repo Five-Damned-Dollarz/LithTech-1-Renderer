@@ -432,10 +432,36 @@ int IsInOptimized2D()
 	return 0;
 }
 
+extern(D)
+void PrintDList(ref DLink head, void delegate(DLink*) callback=(DLink* link) { test_out.writeln(link, ": ", *link); })
+{
+	DLink* next_link=head.prev;
+	while(next_link!=&head)
+	{
+		callback(next_link);
+		next_link=next_link.prev;
+	}
+}
+
 int RenderScene(SceneDesc* scene_desc)
 	in(scene_desc!=null)
 {
 	test();
+
+	test_out.writeln(*_renderer);
+	test_out.writeln(*_renderer.palette_list);
+
+	foreach(ref DLink link; _renderer.palette_list.palettes)
+	{
+		PrintDList(link, (DLink* link) { test_out.writeln(link, ": ", *cast(DEPalette*)link.data); });
+	}
+
+	foreach(pan; _renderer.global_pans)
+	{
+		if (pan.texture_ref)
+			test_out.writeln(*pan.texture_ref);
+	}
+	test_out.flush();
 
 	WorldBsp* bsp=g_RenderContext.main_world.world_bsp;
 	test_out.writeln(*bsp);
@@ -514,7 +540,11 @@ int RenderScene(SceneDesc* scene_desc)
 				test_out.writeln(*obj_);
 
 				test_out.TraverseModel(obj_.model_data.unknown_5);
-				test_out.writeln("Cur anim: ", obj_.anim_current.name.fromStringz);
+
+				PrintDList(obj_.link, (DLink* link) { if (link.data) test_out.writeln(link, ": ", *cast(Buffer*)link.data); });
+				PrintDList(obj_.link_unknown, (DLink* link) { if (link.data) test_out.writeln(link, ": ", *cast(BaseObject*)link.data); });
+
+				test_out.writeln("Cur anims: ", obj_.keyframes[0].animation.name.fromStringz, " ", obj_.keyframes[1].animation.name.fromStringz);
 
 				test_out.writeln("Texture: ", cast(void*)obj_.texture);
 				if (obj_.texture)
@@ -560,7 +590,8 @@ int RenderScene(SceneDesc* scene_desc)
 					test_out.writeln(*buf);
 				}*/
 
-				test_out.writeln(*obj_.model_frame);
+				test_out.writeln(*obj_.keyframes[0].frame_data);
+				test_out.writeln(*obj_.keyframes[1].frame_data);
 
 				/+if (auto model=obj_.model_data)
 				{
@@ -632,6 +663,12 @@ int RenderScene(SceneDesc* scene_desc)
 			{
 				import Objects.LineSystem;
 				LineSystemObject* obj_=object_inst.ToLineSystem();
+				test_out.writeln(*obj_);
+			}
+			else if (object_inst.type_id==ObjectType.Camera)
+			{
+				import Objects.Camera;
+				CameraObject* obj_=object_inst.ToCamera();
 				test_out.writeln(*obj_);
 			}
 

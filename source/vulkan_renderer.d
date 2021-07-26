@@ -1256,9 +1256,6 @@ private:
 	{
 		UniformBufferObject ubo;
 		ubo.model=mat4.identity.translate(0f, 0f, 0f).transposed();
-		// pitch = mouse x; roll = mouse y
-		// x = v; y = h; z = roll
-		ubo.view=ubo.view.identity();
 
 		void RotTransCamera(vec3 pos, quat rot, out mat4 mat4_out)
 		{
@@ -1302,12 +1299,9 @@ private:
 			mat4_out[3][3]=1f;
 		}
 
-		mat4 test_camera_out;
-		test_camera_out=mat4.identity();
+		mat4 test_camera_out=mat4.identity();
 		RotTransCamera(camera_pos, camera_view, test_camera_out);
-		test_camera_out.transpose();
-
-		ubo.view=test_camera_out;
+		ubo.view=test_camera_out.transposed();
 
 		ubo.proj=mat4.perspective(_extents.width, _extents.height, 45f, 0.1f, 15000f).transposed();
 

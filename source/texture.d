@@ -18,8 +18,10 @@ struct Colour
 struct DEPalette
 {
 	DLink link;
-	int[3] unknown;
+	int[3] unknown; // [0] = null if master palette, pointer to memory if not?, [1] = unknown, [2] = unknown
 	Colour[256] colours;
+
+	//pragma(msg, this.sizeof);
 }
 
 enum DtxFlags : uint

@@ -291,12 +291,21 @@ struct ClassDef
 	BaseObject* static_obj;
 }
 
+struct InterObjectLink
+{
+	uint type; // unknown [0, 1, 2]?
+	BaseObject* owner;
+	BaseObject* linked;
+	void* unknown;
+	void* unknown_alloc; // if type!=2 there should be a memory allocation pointer here
+}
+
 struct ObjectClass
 {
 align(1):
 	uint flags;
-	ObjectClass* unknown_obj; // ???
-	void* buf1;
+	ObjectClass* /+ InterObjectLink* +/ unknown_obj; // ???
+	void* /+ InterObjectLink* +/ buf1;
 	ObjectString** object_name;
 	float next_update;
 	float deactivate_time;
@@ -426,7 +435,7 @@ enum ObjectType : ubyte // NOTE: the high bit of the object type is reserved for
 struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, ParticleSystem, LineSystem, and Container derive from it
 {
 	DLink link;
-	DLink link_unknown; // maybe not even a link?
+	DLink link_unknown; // list of BaseObject*, unsure of purpose
 	Buffer* list; // unknown
 
 	void*[2] unknown_1; // suspect object type-calc'd functors from engine
@@ -442,8 +451,8 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 	vec3 position;
 	float[4] rotation;
 	vec3 scale;
+	float width;
 
-	float unknown_5;
 	short[2] unknown_6;
 	short ffff; // unknown, is set to FFFF on creation, possible bitmask for what's updated
 	short[2] frame_code; // [108] is set to 0 on frame start
@@ -494,6 +503,7 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 	static assert(attachments.offsetof==52);
 	static assert(position.offsetof==56);
 	//static assert(???.offsetof==84); for type_id=ParticleSystem, unsure what these values are for
+	static assert(width.offsetof==96);
 	static assert(type_id.offsetof==110);
 	//static assert(???.offsetof==124); unsure what this is yet, but it's necessary for visibility?
 	static assert(state.offsetof==220);

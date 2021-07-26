@@ -146,6 +146,7 @@ struct ModelData
 
 	uint lod_count;
 
+	// set via command_string
 	float lod_dist_min; // LODSTARTDIST
 	float lod_interval; // LODINCREMENT
 	float lod_dist_max; // LODMAXDIST
@@ -188,7 +189,9 @@ ModelObject* ToModel(BaseObject* obj)
 
 enum ModelFlags : uint
 {
+	// Unknown=0x1,
 	Looping=0x2,
+	// Unknown=0x4,
 }
 
 struct ModelObject
@@ -196,29 +199,34 @@ struct ModelObject
 	alias base this;
 	BaseObject base;
 
+	/+
+	 +   Took another look at the texture issue and noticed that there's actually 2 different almost identical objects in
+	 + memory; one has a class and no texture, and the other has a texture and no class.
+	 +   They aren't parent/child attached but I have noticed that textured models reference the CPlayerObj pointer in
+	 + their base.link_unknown lists.
+	 +/
 	import Texture: SharedTexture;
 	SharedTexture* texture; // probably part of BaseObject?
 
 	AnimData* anim_data;
 
-	void*[4] buf;
+	void*[4] buf; // [2] = unknown (not a float, probably not a pointer), [3] = pointer to self
 
 	ModelData* model_data;
 
 	void* buf1;
 
 	ModelFlags model_flags;
-	ModelAnim* buf1a; // mirrors anim_current
-	AnimKeyframe* model_frame; // mirrors anim_curr_keyframes?
 
-	void*[2] buf2;
-
-	ModelAnim* anim_current;
-	AnimKeyframe* anim_curr_keyframes;
-
-	void* buf3;
-	uint frame_index; // seems possible?
-	float frame_interpolation; // not sure, but seems like it could be the keyframe interpolation
+	struct ModelFrame
+	{
+		ModelAnim* animation;
+		AnimKeyframe* frame_data;
+		uint anim_time; // in ms
+		uint frame_index;
+	}
+	ModelFrame[2] keyframes;
+	float frame_interpolation;
 
 	int unknown_zero;
 	float[2] unknown_sqrt;
@@ -235,8 +243,8 @@ struct ModelObject
 	//static assert(???.offsetof==316); polygon pointer?
 	static assert(model_data.offsetof==320); // this might actually just be the raw model data
 	static assert(model_flags.offsetof==328);
-	static assert(model_frame.offsetof==336); // +4 = vec3[2] min/max
-	static assert(anim_current.offsetof==348);
+	static assert(keyframes.offsetof==332);
+	//static assert(anim_current.offsetof==348);
 	static assert(unknown_sqrt.offsetof==372); // unknown sqrt(2) / 2 * 0.1 vals
 	static assert(unknown_nodes.offsetof==380); // array of ints? node related?
 }
@@ -279,7 +287,7 @@ int GetModelAnimation(ModelObject* obj)
 {
 	if ((obj!=null) && (obj.type_id==ObjectType.Model))
 	{
-		return (cast(int)obj.anim_current-cast(int)obj.model_data.animations)/ModelAnim.sizeof;
+		return (cast(int)obj.keyframes[1].animation-cast(int)obj.model_data.animations)/ModelAnim.sizeof;
 	}
 
 	return -1;

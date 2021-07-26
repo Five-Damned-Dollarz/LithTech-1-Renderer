@@ -25,6 +25,7 @@ struct RenderStructInit
 
 struct Mode // RMode_t from basedefs
 {
+align(4):
 	byte is_hardware;
 
 	char[200] filename; // What DLL this comes from.
@@ -105,7 +106,7 @@ struct SceneDesc
 	int obj_count;
 
 	// model hook
-	void function(void* /+ModelHookData*+/ pData, void* pUser) model_hook_fnc_ptr;
+	void function(void* /+ ModelHookData* +/ pData, void* pUser) model_hook_fnc_ptr;
 	void* model_hook_user;
 
 	static assert(this.sizeof==240);
@@ -198,7 +199,7 @@ struct RenderDLL
 	TextureData* function(SharedTexture*, void* /+ out bool? +/) GetTexture;
 	void function(SharedTexture*) FreeTexture;
 	/+ --- Fairly confident these are palette functions +/
-	void* function(DEPalette*) UnknownFunc_1; // unused? return *(param_1 + 0x8)
+	DEPalette* function(DLink*) DLinkToPalette; // this is the only reasonable guess I have
 	Colour* function(DEPalette*) GetPaletteColours; // return (param_1 + 0x18)
 	void* function(DEPalette*) GetPaletteUnknownFunc; // returns DEPalette*? return *(param_1 + 0xC)
 	void function(DEPalette*, void*) SetPaletteUnknownFunc; // void return; *(param_1 + 0xC) = param2
