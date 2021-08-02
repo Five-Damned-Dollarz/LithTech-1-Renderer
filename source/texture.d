@@ -1,5 +1,6 @@
 module Texture;
 
+import LTCore: LTFileStream;
 import RendererTypes: DLink, Buffer;
 
 enum uint DtxVersion=-2;
@@ -21,7 +22,7 @@ struct DEPalette
 	int[3] unknown; // [0] = null if master palette, pointer to memory if not?, [1] = unknown, [2] = unknown
 	Colour[256] colours;
 
-	//pragma(msg, this.sizeof);
+	static assert(this.sizeof==1048);
 }
 
 enum DtxFlags : uint
@@ -43,6 +44,7 @@ struct DtxHeader
 	uint flags_other; // defined by the game/object.lto
 	short group;
 	short mipmaps_used_count; // 0 = 4?
+	// these alpha_ values are hints for the software renderer
 	short alpha_cutoff; // seems to be limited to [128-255]
 	short alpha_average;
 }
@@ -78,7 +80,7 @@ struct TextureData
 
 struct SharedTexture
 {
-	Buffer* ref1; // unknown
+	int ref1; // is_init flag?
 	TextureData* engine_data;
 	RenderTexture render_data; // render_data; if null load new texture from engine_data?
 	DLink link;
@@ -90,11 +92,15 @@ struct SharedTexture
 	// [44] = height
 	// [48] = bbp
 	// [56] is used somehow
-	Buffer*[5] buf1;
+	Buffer*[2] buf1;
+	LTFileStream* file_stream;
+	Buffer*[2] buf1a;
+
 	short width, height, bpp; // unsure
 	Buffer*[34] buf2;
 
 	//static assert(this.sizeof>=40); // 36 bytes cleared, 64/68?
+	static assert(file_stream.offsetof==0x20);
 }
 
 /+
@@ -156,7 +162,7 @@ class RenderTexture
 		int width, height, channels;
 		ubyte[] pixels=TransitionTexturePixels(data, width, height, channels, 8);
 		// SANITY CHECK: dump texture as bitmap
-		import Bitmap;
+		import Bitmap: Bitmap;
 		Bitmap bitmap_out;
 		bitmap_out.pixel_data=pixels;
 		bitmap_out.file_header.file_size=bitmap_out.file_header.pixel_data_offset+bitmap_out.pixel_data.length;

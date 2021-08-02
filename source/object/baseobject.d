@@ -2,6 +2,7 @@ module Objects.BaseObject;
 
 import RendererTypes: DLink, Buffer;
 import WorldBsp;
+//import WorldBsp : WorldBsp;
 
 import gl3n.linalg;
 
@@ -296,16 +297,14 @@ struct InterObjectLink
 	uint type; // unknown [0, 1, 2]?
 	BaseObject* owner;
 	BaseObject* linked;
-	void* unknown;
-	void* unknown_alloc; // if type!=2 there should be a memory allocation pointer here
+
+	DLink* link_ref;
+	DLink* link_ref2; // if type!=2 there should be a pointer here
 }
 
 struct ObjectClass
 {
-align(1):
-	uint flags;
-	ObjectClass* /+ InterObjectLink* +/ unknown_obj; // ???
-	void* /+ InterObjectLink* +/ buf1;
+	DLink link;
 	ObjectString** object_name;
 	float next_update;
 	float deactivate_time;
@@ -320,7 +319,7 @@ align(1):
 	BaseObject* next;
 	BaseObject* next_inactive;
 	void* buf5;
-	uint unknown_flags; // updates if below is not 0, looks like flags
+	Buffer* unknown_flags; // updates if below is not 0, appears to be a pointer?
 	void* unknown; // if 0 we don't do something in a lot of updating functions
 }
 
@@ -435,7 +434,7 @@ enum ObjectType : ubyte // NOTE: the high bit of the object type is reserved for
 struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, ParticleSystem, LineSystem, and Container derive from it
 {
 	DLink link;
-	DLink link_unknown; // list of BaseObject*, unsure of purpose
+	DLink link_unknown; // list of BaseObject*, unsure of purpose. BEWARE in multiplayer data sometimes points to addresses like 0x4 or 0x40! Treat (int)data<0x10000 as null
 	Buffer* list; // unknown
 
 	void*[2] unknown_1; // suspect object type-calc'd functors from engine
@@ -484,8 +483,6 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 	DLink unknown_link_1;
 	void* buf2b;
 	float[4] unknown_rot;
-	//void*[2] buf3;
-	//Buffer* self3;
 	DLink unknown_link_2;
 	uint client_user_flags;
 	void* buf4;
@@ -493,16 +490,13 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 
 	// probably where "base" Object ends and derived data begins?
 
-	//WorldData* bsp;
-
 	//pragma(msg, this.sizeof);
-	//static assert(this.sizeof>=108);
+	//static assert(this.sizeof>=296);
 	static assert(flags.offsetof==40);
 	static assert(user_flags.offsetof==44);
 	static assert(colour.offsetof==48); // if colour[4] (alpha) is not 0xFF then add to transparent draw list instead of solid
 	static assert(attachments.offsetof==52);
 	static assert(position.offsetof==56);
-	//static assert(???.offsetof==84); for type_id=ParticleSystem, unsure what these values are for
 	static assert(width.offsetof==96);
 	static assert(type_id.offsetof==110);
 	//static assert(???.offsetof==124); unsure what this is yet, but it's necessary for visibility?
@@ -510,11 +504,4 @@ struct BaseObject // This is the base Object; Model, WorldModel, Sprite, Light, 
 	static assert(unknown_rot.offsetof==256);
 	static assert(client_user_flags.offsetof==284);
 	static assert(class_.offsetof==292);
-
-	//static assert(bsp.offsetof==298); // for type_id=WorldModel
-	//static assert(???.offsetof==316); polygon pointer?
-	//static assert(container_code.offsetof==428); // for type_id=Container
-
-	// possibly 300 byte stride for one of the object types?
-	// 428-432 stride?
 }

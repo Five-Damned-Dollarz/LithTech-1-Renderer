@@ -202,8 +202,10 @@ struct ModelObject
 	/+
 	 +   Took another look at the texture issue and noticed that there's actually 2 different almost identical objects in
 	 + memory; one has a class and no texture, and the other has a texture and no class.
-	 +   They aren't parent/child attached but I have noticed that textured models reference the CPlayerObj pointer in
-	 + their base.link_unknown lists.
+	 +   They aren't parent/child attached but must be client/server linked, doing an object memory dump from a client
+	 + connected to a multiplayer server shows only objects with a texture.
+	 +   How does (should?) the renderer filter server objects when running singleplayer; I suspect the original d3d.ren
+	 + simply goes through all the matrix transform math with a null texture assigned... Not optimal.
 	 +/
 	import Texture: SharedTexture;
 	SharedTexture* texture; // probably part of BaseObject?
@@ -233,11 +235,14 @@ struct ModelObject
 
 	void* unknown_nodes;
 
+	/+
+	// I think there's actually another BaseObject starting here, which is pointed to from base.class_.unknown_flags
 	void*[9] buf4;
 
 	int ffff; // unknown?
+	+/
 
-	static assert(texture.offsetof==296); // this /should/ be where the texture is, but doesn't seem to be?
+	static assert(texture.offsetof==296);
 	static assert(anim_data.offsetof==300);
 	// 304 texture?
 	//static assert(???.offsetof==316); polygon pointer?

@@ -10,7 +10,9 @@ class Renderer
 public:
 	void InitFrom(void* window)
 	{
-		//SDL_Init(SDL_INIT_VIDEO);
+		auto ret=loadSDL();
+		SDL_Init(SDL_INIT_VIDEO);
+
 		_window=SDL_CreateWindowFrom(window);
 		SDL_SetWindowSize(_window, 640, 480);
 		//SDL_SetWindowFullscreen(_window, SDL_WINDOW_FULLSCREEN_DESKTOP);

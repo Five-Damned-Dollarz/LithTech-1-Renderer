@@ -17,6 +17,7 @@ import gl3n.math;
 import RendererMain;
 import RendererTypes;
 import Texture;
+import WorldBsp: WorldBsp, MainWorld, Node, SurfaceFlags, Polygon;
 
 File test_out;
 
@@ -236,6 +237,9 @@ public:
 		import std.stdio;
 		test_out.open("vk_test.txt", "w");
 
+		import erupted.vulkan_lib_loader;
+		loadGlobalLevelFunctions(test_out.getFP());
+
 		{
 			/+
 			 + possible avenue for replacing the window with a 32 bit pixel format: GetWindowLong(window, GWL_WNDPROC) -> create new window
@@ -324,7 +328,6 @@ public:
 		+/
 	}
 
-	import WorldBsp: Node;
 	private void DrawBSP(Node* node)
 	{
 		/*if (node.next.flags & 8)
@@ -580,6 +583,18 @@ LAB_0004814b:
 	override void Clear()
 	{
 		// may be incompatible with how Vulkan works
+	}
+
+	override void* CreateSurface(const int width, const int height)
+	{
+		import core.stdc.stdlib: malloc;
+		return malloc((width*height) << 1);
+	}
+
+	override void DeleteSurface(void* surface)
+	{
+		import core.stdc.stdlib: free;
+		free(surface);
 	}
 
 	override void* LockSurface(void* surface)
@@ -1765,8 +1780,6 @@ private:
 		CreateVkImage(_extents.width, _extents.height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, _depth_image, _depth_image_memory);
 		_depth_image_view=CreateImageView(_depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
 	}
-
-	import WorldBsp;
 
 	uint index_count=0;
 	public void CreateBspVertexBuffer(WorldBsp* bsp)

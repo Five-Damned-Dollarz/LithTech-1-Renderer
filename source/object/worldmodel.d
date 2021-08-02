@@ -2,7 +2,7 @@ module Objects.WorldModel;
 
 import Objects.BaseObject;
 
-import WorldBsp: WorldData;
+import WorldBsp : WorldBsp, WorldData;
 
 import gl3n.linalg;
 
@@ -11,9 +11,6 @@ WorldModelObject* ToWorldModel(BaseObject* obj)
 	return cast(WorldModelObject*)obj;
 }
 
-/+
- + Container might just be different functions operating on WorldModelObject rather than an extension? More research required!
- +/
 struct WorldModelObject
 {
 	alias base this;
@@ -27,6 +24,9 @@ struct WorldModelObject
 	static assert(bsp_data.offsetof==296);
 }
 
+/+
+ + Container might just be different functions operating on WorldModelObject rather than an extension? More research required!
+ +/
 struct ContainerObject
 {
 	alias base this;

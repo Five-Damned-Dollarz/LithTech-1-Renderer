@@ -5,7 +5,6 @@
 Note:
 - This is a personal project more about reverse engineering the interfaces than to create a modern renderer itself, you will find only horror and code-gore here.
 - Requires a *test_texture.png* to load, it's not actually used but needs to exist to be loaded as a dummy during the menus for now (2021/07).
-- There's a bunch of SDL references that do nothing but need to be removed, so you still need SDL2.dll to run it (2021/07).
 
 ## The Interesting Parts
 *source/renderer_interface.d* and *source/object/\*.d* are where the most useful parts are for most people interested in working with LithTech 1.0, it should be trivial for anyone familiar with C-like languages to translate them from D to any preferred language.
@@ -30,4 +29,4 @@ Yes. See the first note above; there's a lot of text flushing every frame to mak
 I also did a 5 minute hack change to make textures work *right now* that obliterated Vulkan's performance, and haven't really given any thought to restructuring everything to support a more modern rendering style.
 
 ## Observations
-- I suspect LithTech 1 will need a hack to work on resolutions with a width or height above 5000px due to checks at Client.exe:0x0040b09a which will prevent a surface from being created.
+- I suspect LithTech 1 will need a hack to work on resolutions with a width or height above 5000px due to checks at Client.exe:0x0040b09a (file + 0xA492) which will prevent a surface from being created.

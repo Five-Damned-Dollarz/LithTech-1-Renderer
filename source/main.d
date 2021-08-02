@@ -12,12 +12,9 @@ import core.stdc.string;
 import RendererTypes;
 import RendererMain;
 import VulkanRender;
-import WorldBsp;
+import WorldBsp: WorldBsp, MainWorld, Node;
 import Texture;
 import Objects.BaseObject;
-
-import bindbc.sdl;
-import erupted.vulkan_lib_loader;
 
 extern(Windows)
 BOOL DllMain(HINSTANCE hInstance, ULONG ulReason, LPVOID pvReserved)
@@ -27,12 +24,6 @@ BOOL DllMain(HINSTANCE hInstance, ULONG ulReason, LPVOID pvReserved)
 		case DLL_PROCESS_ATTACH:
 			test_out.open("test.txt", "w");
 			test_out.writeln("Process Attach:");
-
-			auto ret=loadSDL();
-
-			loadGlobalLevelFunctions(test_out.getFP());
-
-			SDL_Init(SDL_INIT_VIDEO);
 
 			g_hInst=hInstance;
 
@@ -308,7 +299,6 @@ void* CreateContext(RenderContextInit* context_init)
 	g_RenderContext=cast(RenderContext*)calloc(1, RenderContext.sizeof);
 	g_RenderContext.main_world=context_init.main_world;
 
-	import WorldBsp;
 	test_out.writeln(*g_RenderContext.main_world);
 
 	WorldBsp* bsp=g_RenderContext.main_world.world_bsp;
@@ -451,10 +441,10 @@ int RenderScene(SceneDesc* scene_desc)
 	test_out.writeln(*_renderer);
 	test_out.writeln(*_renderer.palette_list);
 
-	foreach(ref DLink link; _renderer.palette_list.palettes)
+	/+foreach(ref DLink link; _renderer.palette_list.palettes)
 	{
 		PrintDList(link, (DLink* link) { test_out.writeln(link, ": ", *cast(DEPalette*)link.data); });
-	}
+	}+/
 
 	foreach(pan; _renderer.global_pans)
 	{
@@ -509,10 +499,24 @@ int RenderScene(SceneDesc* scene_desc)
 					test_out.writeln(object_inst);
 					test_out.writeln(*class_.object_instance);
 
+					PrintDList(class_.link,
+						(DLink* link)
+						{
+							test_out.writeln(link, ": ", *link);
+							test_out.writeln("data: ", link.data, " ", *cast(InterObjectLink*)link.data);
+							test_out.flush();
+
+							auto link_dat=cast(InterObjectLink*)link.data;
+							test_out.writeln(*cast(Buffer*)link_dat.link_ref, " ", *cast(Buffer*)link_dat.link_ref2);
+						}
+					);
+
+					if (class_.unknown_flags) test_out.writeln(*cast(BaseObject*)class_.unknown_flags);
+
 					auto temp_aggr=class_.object_instance.m_pFirstAggregate;
 					while(temp_aggr)
 					{
-						test_out.writeln("aggr: ", *temp_aggr);
+						test_out.writeln("aggr: ", temp_aggr, " ", *temp_aggr);
 						temp_aggr=temp_aggr.m_pNextAggregate;
 					}
 
@@ -523,7 +527,7 @@ int RenderScene(SceneDesc* scene_desc)
 					{
 						test_out.writeln(prop.m_PropName.fromStringz);
 						test_out.writeln(prop);
-						if (prop.m_PropType==0 && prop.m_DefaultValueString)
+						if (prop.m_PropType==PropertyType.String && prop.m_DefaultValueString)
 							test_out.writeln(prop.m_DefaultValueString.fromStringz);
 					}
 
@@ -541,8 +545,8 @@ int RenderScene(SceneDesc* scene_desc)
 
 				test_out.TraverseModel(obj_.model_data.unknown_5);
 
-				PrintDList(obj_.link, (DLink* link) { if (link.data) test_out.writeln(link, ": ", *cast(Buffer*)link.data); });
-				PrintDList(obj_.link_unknown, (DLink* link) { if (link.data) test_out.writeln(link, ": ", *cast(BaseObject*)link.data); });
+				PrintDList(obj_.link, (DLink* link) { if (link.data) test_out.writeln(link, ": ", *cast(Buffer*)link.data); test_out.flush(); });
+				PrintDList(obj_.link_unknown, (DLink* link) { if (cast(int)link.data>0xFFFF) test_out.writeln(link, ": ", *cast(BaseObject*)link.data); });
 
 				test_out.writeln("Cur anims: ", obj_.keyframes[0].animation.name.fromStringz, " ", obj_.keyframes[1].animation.name.fromStringz);
 
@@ -550,6 +554,17 @@ int RenderScene(SceneDesc* scene_desc)
 				if (obj_.texture)
 				{
 					test_out.writeln("Texture: ", *obj_.texture);
+
+					if (obj_.texture.file_stream)
+					{
+						import LTCore;
+						LTFileStream* stream=obj_.texture.file_stream;
+						test_out.writeln("fstream?: ", *stream);
+						test_out.writeln("1: ", (cast(Buffer*)stream.unknown_1)[0..4]);
+						test_out.writeln("5: ", stream.file_name.fromStringz);
+
+						PrintDList(stream.link, (DLink* link) { if (link.data) test_out.writeln(link, ": ", *cast(LTFileStream*)link.data, "\n", (cast(LTFileStream*)link.data).file_name.fromStringz); });
+					}
 				}
 
 				//if (obj_.unknown_nodes)
