@@ -474,7 +474,15 @@ LAB_0004814b:
 
 			void SetCommandBuffer(size_t image_index)
 			{
-				VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ]; // never clear to black! Black hides bugs!
+				debug
+				{
+					VkClearValue[] clear_colour=[ { color: {[ 0.4f, 0.58f, 0.93f, 1f ]} }, { depthStencil: { 1f, 0 } } ]; // never clear to black! Black hides bugs!
+				}
+				else
+				{
+					// release should clear to black, there's holes in some maps (notably the train levels) that let you see the clear colour and black is expected
+					VkClearValue[] clear_colour=[ { color: {[ 0f, 0f, 0f, 1f ]} }, { depthStencil: { 1f, 0 } } ];
+				}
 
 				auto buffer=_command_buffers[image_index];
 

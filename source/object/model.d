@@ -177,7 +177,17 @@ struct ModelData
 
 struct AnimData
 {
-	void*[17] buf;
+	void*[8] unknown;
+
+	struct AnimDataUnknown
+	{
+		ModelAnim* anim_ref;
+		void*[2] unknown;
+		int anim_id;
+	}
+	AnimDataUnknown[2] anims;
+
+	float frame_delta;
 
 	static assert(this.sizeof==68);
 }
@@ -210,7 +220,7 @@ struct ModelObject
 	import Texture: SharedTexture;
 	SharedTexture* texture; // probably part of BaseObject?
 
-	AnimData* anim_data;
+	AnimData* anim_data; // not sure when this is populated yet
 
 	void*[4] buf; // [2] = unknown (not a float, probably not a pointer), [3] = pointer to self
 
