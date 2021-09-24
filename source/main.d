@@ -570,11 +570,6 @@ int RenderScene(SceneDesc* scene_desc)
 				//if (obj_.unknown_nodes)
 				//	test_out.writeln(*cast(Buffer*)obj_.unknown_nodes);
 
-				if (obj_.anim_data)
-				{
-					test_out.writeln(*obj_.anim_data);
-				}
-
 				if (auto attach=object_inst.attachments)
 				{
 					while(attach!=null)

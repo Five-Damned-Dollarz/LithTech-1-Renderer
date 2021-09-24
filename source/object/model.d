@@ -175,29 +175,12 @@ struct ModelData
 	static assert(animation_count.offsetof==248);
 }
 
-struct AnimData
-{
-	void*[8] unknown;
-
-	struct AnimDataUnknown
-	{
-		ModelAnim* anim_ref;
-		void*[2] unknown;
-		int anim_id;
-	}
-	AnimDataUnknown[2] anims;
-
-	float frame_delta;
-
-	static assert(this.sizeof==68);
-}
-
 ModelObject* ToModel(BaseObject* obj)
 {
 	return cast(ModelObject*)obj;
 }
 
-enum ModelFlags : uint
+enum ModelFlags : uint // upper 2 bytes are 0xFFFF if slow transition is not wanted
 {
 	// Unknown=0x1,
 	Looping=0x2,
@@ -220,14 +203,13 @@ struct ModelObject
 	import Texture: SharedTexture;
 	SharedTexture* texture; // probably part of BaseObject?
 
-	AnimData* anim_data; // not sure when this is populated yet
-
+	///// this section is frequently used as if it's an in-place struct by passing &anim_data into functions; possible TODO: split out into AnimData struct?
+	// {
+	void* anim_data;
 	void*[4] buf; // [2] = unknown (not a float, probably not a pointer), [3] = pointer to self
 
 	ModelData* model_data;
-
-	void* buf1;
-
+	uint keyframe_current;
 	ModelFlags model_flags;
 
 	struct ModelFrame
@@ -239,6 +221,8 @@ struct ModelObject
 	}
 	ModelFrame[2] keyframes;
 	float frame_interpolation;
+	// }
+	/////
 
 	int unknown_zero;
 	float[2] unknown_sqrt;
