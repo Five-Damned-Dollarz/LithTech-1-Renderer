@@ -25,15 +25,14 @@ struct RenderStructInit
 
 struct Mode // RMode_t from basedefs
 {
-align(4):
+align(1):
 	byte is_hardware;
 
 	char[200] filename; // What DLL this comes from.
 	char[100] driver_name; // This is what the DLLs use to identify a card.
 	char[100] display_name; // This is a 'friendly' string describing the card.
 
-	// 3 align bytes here
-
+align(4): // 3 align bytes here
 	int width, height;
 	uint depth;
 	Mode* next;
@@ -274,6 +273,8 @@ struct RenderDLL
 		void function(byte) EnableSomeMatrixMagic;
 	}
 
+	// The engine soft-resetting renderer zeroes struct to here (may also include unknown_3?)
+
 	void* unknown_3;
 	SharedTexture* envmap_texture;
 	GlobalPan[GlobalPanType.Count] global_pans;
@@ -288,5 +289,8 @@ struct RenderDLL
 	}
 	PaletteList* palette_list; // Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
 
+	// compiling -version=LITHTECH_1_5 will fail here
+	static assert(this.sizeof==272);
+	static assert(is_init.offsetof==60);
 	static assert(render_dll_handle.offsetof==264);
 }
