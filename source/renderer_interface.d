@@ -210,6 +210,15 @@ struct RenderDLL
 	float function(void*) GetVarValueFloat;
 	const char* function(void*) GetVarValueString;
 	void* function() UnknownFunc_5; // does nothing in d3d.ren
+
+	version(LITHTECH_1_5)
+	{
+		/+ No idea what these do yet +/
+		void* function() Alloc4Bytes;
+		void function(void*) Free4Bytes;
+		void function() UnknownFunc_x;
+	}
+
 	int screen_width;
 	int screen_height;
 	int is_init;
@@ -253,6 +262,18 @@ struct RenderDLL
 	void function(BlitRequest*) BlitToScreen;
 	void function(const char*) MakeScreenShot;
 	void function() ReadConsoleVariables;
+
+	version(LITHTECH_1_5)
+	{
+		/+ I'm not sure of any of these! +/
+		void function(void*) GetBackBufferCount;
+		void function() CreateNewBackBuffer;
+		void function(char* /+ file name +/, int /+ width +/, int /+ height +/) CreateImageFile; // unsure what it's saving
+		void function(void*) SetEnvironmentMapTexture;
+		void function(void*) SetGlobalSomething; // copies 24 bytes, possibly a texture?
+		void function(byte) EnableSomeMatrixMagic;
+	}
+
 	void* unknown_3;
 	SharedTexture* envmap_texture;
 	GlobalPan[GlobalPanType.Count] global_pans;
@@ -267,5 +288,5 @@ struct RenderDLL
 	}
 	PaletteList* palette_list; // Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
 
-	uint unknown_9; // unknown
+	static assert(render_dll_handle.offsetof==264);
 }

@@ -1,6 +1,7 @@
 module Objects.Model;
 
 import Objects.BaseObject;
+import Texture: SharedTexture;
 import Codes;
 
 import gl3n.linalg;
@@ -111,7 +112,11 @@ struct ModelFace
 
 struct ModelData
 {
-	void*[6] unknown_1;
+	void*[2] unknown_1a;
+	ModelData* self_ref;
+	char* file_name;
+	void*[2] unknown_1b;
+
 	vec3 bounds_min, bounds_max;
 	float bounds_radius;
 
@@ -142,7 +147,8 @@ struct ModelData
 	uint face_count;
 	ModelFace* faces;
 
-	void*[2] unknown_10; // [0] = UVs somehow? 48 byte stride [1] = weird vertices?
+	float* uvs; // UVs, 6 floats, 48 byte stride
+	void* unknown_10; // float[6] * face_count might fit, possibly "normalized" (0-255) UVs?
 
 	uint lod_count;
 
@@ -184,7 +190,7 @@ enum ModelFlags : uint // upper 2 bytes are 0xFFFF if slow transition is not wan
 {
 	// Unknown=0x1,
 	Looping=0x2,
-	// Unknown=0x4,
+	// IsLoaded=0x4, // unsure
 }
 
 struct ModelObject
@@ -200,13 +206,13 @@ struct ModelObject
 	 +   How does (should?) the renderer filter server objects when running singleplayer; I suspect the original d3d.ren
 	 + simply goes through all the matrix transform math with a null texture assigned... Not optimal.
 	 +/
-	import Texture: SharedTexture;
-	SharedTexture* texture; // probably part of BaseObject?
+
+	SharedTexture* texture;
 
 	///// this section is frequently used as if it's an in-place struct by passing &anim_data into functions; possible TODO: split out into AnimData struct?
 	// {
 	void* anim_data;
-	void*[4] buf; // [2] = unknown (not a float, probably not a pointer), [3] = pointer to self
+	void*[4] buf; // [2] = unknown, maybe flags? values like 0x401B50, 0x44C800, [3] = pointer to self
 
 	ModelData* model_data;
 	uint keyframe_current;
@@ -239,7 +245,6 @@ struct ModelObject
 	static assert(texture.offsetof==296);
 	static assert(anim_data.offsetof==300);
 	// 304 texture?
-	//static assert(???.offsetof==316); polygon pointer?
 	static assert(model_data.offsetof==320); // this might actually just be the raw model data
 	static assert(model_flags.offsetof==328);
 	static assert(keyframes.offsetof==332);

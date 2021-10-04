@@ -166,7 +166,7 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 	struct DiskVert
 	{
 		vec4* vertex_data;
-		vec2 uv; // not normalized, will need texture dimensions to tile in Vulkan; not filled in by CreateContext call
+		vec2 uv; // filled in some time after CreateContext call
 		private vec2 pad; // unsure if this is used
 		ubyte[4] colour;
 	}

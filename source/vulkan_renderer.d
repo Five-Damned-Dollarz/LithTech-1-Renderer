@@ -1808,7 +1808,6 @@ private:
 
 			if (polygon.surface.flags & SurfaceFlags.Invisible)
 				continue;
-			//bind polygon.surface.shared_texture.render_data.image_view
 
 			foreach(j, vertex; polygon.DiskVerts())
 			{
