@@ -268,7 +268,7 @@ struct WorldBsp
 
 	uint unknown_4; // leaf_list_contents length? possible address? possible flag for something?
 
-	Node* node_root;
+	Node* root_node;
 	ObjectList* world_model_root;
 
 	Polygon** polygons; // polygons?

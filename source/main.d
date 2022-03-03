@@ -365,7 +365,7 @@ void* CreateContext(RenderContextInit* context_init)
 		}
 	}
 
-	//TraverseNode(bsp.node_root);
+	//TraverseNode(bsp.root_node);
 
 	(cast(VulkanRenderer)_renderer_inst).CreateBspVertexBuffer(g_RenderContext.main_world.world_bsp);
 
@@ -456,7 +456,7 @@ int RenderScene(SceneDesc* scene_desc)
 	WorldBsp* bsp=g_RenderContext.main_world.world_bsp;
 	test_out.writeln(*bsp);
 
-	Node* root_node=bsp.node_root;
+	Node* root_node=bsp.root_node;
 
 	// display all world model lists
 	/+foreach(ref model; bsp.world_models[0..bsp.world_models_count])
@@ -603,7 +603,7 @@ int RenderScene(SceneDesc* scene_desc)
 				test_out.writeln(*obj_.keyframes[0].frame_data);
 				test_out.writeln(*obj_.keyframes[1].frame_data);
 
-				/+if (auto model=obj_.model_data)
+				if (auto model=obj_.model_data)
 				{
 					test_out.writeln(*model);
 
@@ -613,23 +613,22 @@ int RenderScene(SceneDesc* scene_desc)
 					{
 						test_out.writeln(i, " [", node_, "]: ", node_.name.fromStringz, " ", *node_);
 
-						//if (node_.deform_vertices && node_.deform_vertex_count)
-						//	test_out.writeln("dverts: ", node_.deform_vertices[0..node_.deform_vertex_count]);
+						if (node_.deform_vertices && node_.deform_vertex_count)
+							test_out.writeln("dverts: ", node_.deform_vertices[0..node_.deform_vertex_count]);
 					}
 
 					test_out.writeln(model.animations[0]);
 					test_out.writeln(model.animations[0].Keyframes());
 
-					test_out.writeln(model.vertices[0..model.unknown_9_count]);
-					test_out.writeln((cast(byte*)model.vertices)[0..256]);
+					//test_out.writeln(model.vertices[0..model.unknown_9_count]);
 
 					test_out.writeln(model.node_matrices[0..model.node_matrix_count]);
 
-					test_out.writeln(*cast(Buffer*)model.unknown_3);
+					//test_out.writeln(*cast(Buffer*)model.unknown_3);
 
-					//test_out.writeln((cast(Buffer*)model.unknown_10[0])[0..8]);
-					//test_out.writeln((cast(Buffer*)model.unknown_10[1])[0..8]);
-				}+/
+					test_out.writeln(model.uvs[0..6]);
+					test_out.writeln((cast(float*)model.unknown_10)[0..10000]);
+				}
 			}
 			else if (object_inst.type_id==ObjectType.WorldModel || object_inst.type_id==ObjectType.Container)
 			{
@@ -719,7 +718,7 @@ int RenderScene(SceneDesc* scene_desc)
 			ProcessNode(node.next[1]);
 	}
 
-	ProcessNode(root_node);
+	//ProcessNode(root_node);
 
 	if (_renderer.is_init!=0)
 	{

@@ -1,7 +1,7 @@
 #version 450
 #extension GL_ARB_separate_shader_objects: enable
 
-layout(binding=1) uniform sampler tex_sampler;
+layout(set=0, binding=1) uniform sampler tex_sampler;
 layout(set=1, binding=0) uniform texture2D tex;
 
 layout(location=0) in vec3 colour_in;

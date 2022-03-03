@@ -37,6 +37,33 @@ VkBool32 DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 	return VK_FALSE;
 }
 
+enum uint MaxLightCount=40;
+
+struct LightObj
+{
+	this(vec3 pos, vec3 colour, float radius)
+	{
+		this.pos=pos;
+		this.colour=colour;
+		this.radius=radius;
+	}
+
+	vec3 pos;
+	private float pad;
+	vec3 colour;
+	float radius;
+}
+
+struct LightListUbo
+{
+	uint count;
+	private float[3] pad;
+	LightObj[MaxLightCount] lights;
+}
+
+VkBuffer[] _light_list_ubo;
+VkMappedMemoryRange[] _light_list_ubo_memory;
+
 struct UniformBufferObject
 {
 	mat4 model;
@@ -287,6 +314,8 @@ public:
 		CreateVertexBuffer(cast(VkDeviceSize)(ushort.sizeof*_test_triangle_indices.length), cast(void*)_test_triangle_indices.ptr, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, _vertex_index_buffer, _vertex_index_memory);
 
 		CreateUniformBuffers();
+		CreateLightListUniformBuffers();
+
 		CreateDescriptorPool();
 		CreateTextureDescriptorPool();
 		CreateDescriptorSets();
@@ -316,7 +345,7 @@ public:
 		local_2c.process_leaf_callback = DummyIterateLeaf__FP6Leaf_tPv;
 		local_2c.add_render_obj_callback = AddClientObjects__FP10FastNode_tRPP7DObjectRi;
 		local_2c.portal_vis_callback = DummyPortalTest__FP12UserPortal_t;
-		r_DrawBSP__FP6Node_t(g_pWorldBsp->node_root?);
+		r_DrawBSP__FP6Node_t(g_pWorldBsp->root_node?);
 		if (g_pWorldBsp->leaf_count != 0) {
 			iVar10 = 0;
 			do {
@@ -471,6 +500,7 @@ LAB_0004814b:
 		//if (g_IsIn3D)
 		{
 			UpdateUniformBuffer(image_index);
+			UpdateLightListUbo(image_index);
 
 			void SetCommandBuffer(size_t image_index)
 			{
@@ -1275,6 +1305,77 @@ private:
 		}
 	}
 
+	void CreateLightListUniformBuffers()
+	{
+		VkDeviceSize buffer_size=LightListUbo.sizeof;
+
+		_light_list_ubo=new VkBuffer[_buffers.length];
+		_light_list_ubo_memory=new VkMappedMemoryRange[_buffers.length];
+
+		foreach(i; 0.._buffers.length)
+		{
+			CreateVkBuffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, _light_list_ubo[i], _light_list_ubo_memory[i]);
+		}
+	}
+
+	void UpdateLightListUbo(uint image_index)
+	{
+		import Main: g_IsIn3D, g_RenderContext;
+		import Objects.BaseObject;
+		import Objects.Light;
+		import WorldBsp: WorldBsp;
+
+		LightListUbo ubo;
+		// iterate lights, set count
+		if (g_RenderContext !is null) // FIXME: pls kill me
+		{
+			test_out.writeln("--- Updating Light List");
+
+			WorldBsp* bsp=g_RenderContext.main_world.world_bsp;
+
+			void ProcessNodeLights(Node* node)
+			{
+				if (node.objects!=null)
+				{
+					ObjectList* curr=node.objects.prev;
+
+					while(curr!=node.objects)
+					{
+						BaseObject* obj=curr.data;
+
+						if (obj.class_!=null) break;
+
+						if ((obj.flags & ObjectFlags.Visible) && !(obj.flags & ObjectFlags.SkyObject) && obj.type_id==ObjectType.Light)
+						{
+							if (ubo.count<40 && !(obj.flags & ObjectFlags.OnlyLightWorld) && !(obj.flags & ObjectFlags.FogLight))
+							{
+								ubo.lights[ubo.count++]=LightObj(obj.position, vec3(obj.colour[0]/255f, obj.colour[1]/255f, obj.colour[3]/255f), obj.ToLight().radius);
+							}
+						}
+						curr=curr.prev;
+					}
+				}
+
+				if (node.next[0].flags & 8)
+					ProcessNodeLights(node.next[0]);
+				if (node.next[1].flags & 8)
+					ProcessNodeLights(node.next[1]);
+			}
+
+			ProcessNodeLights(bsp.root_node);
+		}
+
+		test_out.writeln(ubo);
+
+		void* data;
+		vmaMapMemory(_light_list_ubo_memory[image_index], &data);
+
+		import core.stdc.string: memcpy;
+		memcpy(data, &ubo, ubo.sizeof);
+
+		vmaUnmapMemory(_light_list_ubo_memory[image_index]);
+	}
+
 	void UpdateUniformBuffer(uint image_index)
 	{
 		UniformBufferObject ubo;
@@ -1353,6 +1454,14 @@ private:
 			pImmutableSamplers: null
 		};
 
+		VkDescriptorSetLayoutBinding lights_ubo_layout_binding={
+			binding: 2,
+			descriptorType: VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			descriptorCount: 1,
+			stageFlags: VK_SHADER_STAGE_VERTEX_BIT,
+			pImmutableSamplers: null
+		};
+
 		VkDescriptorSetLayoutBinding sampler_layout_binding={
 			binding: 1,
 			descriptorType: VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -1361,7 +1470,7 @@ private:
 			stageFlags: VK_SHADER_STAGE_FRAGMENT_BIT
 		};
 
-		VkDescriptorSetLayoutBinding[] bindings=[ ubo_layout_binding, sampler_layout_binding ];
+		VkDescriptorSetLayoutBinding[] bindings=[ ubo_layout_binding, sampler_layout_binding, lights_ubo_layout_binding ];
 
 		VkDescriptorSetLayoutCreateInfo create_info={
 			bindingCount: bindings.length,
@@ -1376,7 +1485,7 @@ private:
 		VkDescriptorPoolSize[] pool_size=[
 		{
 			type: VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			descriptorCount: _buffers.length
+			descriptorCount: _buffers.length*2
 		},
 		{
 			type: VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -1414,6 +1523,12 @@ private:
 				range: UniformBufferObject.sizeof
 			};
 
+			VkDescriptorBufferInfo lights_buffer_info={
+				buffer: _light_list_ubo[i],
+				offset: 0,
+				range: LightListUbo.sizeof
+			};
+
 			VkDescriptorImageInfo image_info={
 				imageLayout: VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				//imageView: _texture_image_view,
@@ -1436,6 +1551,14 @@ private:
 				descriptorType: VK_DESCRIPTOR_TYPE_SAMPLER,
 				descriptorCount: 1,
 				pImageInfo: &image_info
+			},
+			{
+				dstSet: _descriptor_sets[i],
+				dstBinding: 2,
+				dstArrayElement: 0,
+				descriptorType: VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				descriptorCount: 1,
+				pBufferInfo: &lights_buffer_info
 			} ];
 
 			vkUpdateDescriptorSets(g_Device, descriptor_write.length, descriptor_write.ptr, 0, null);
@@ -1843,7 +1966,7 @@ private:
 		Vertex[] verts_extra;
 		ushort[] indices_extra;
 
-		DoNode(bsp.node_root, verts_extra, indices_extra);
+		DoNode(bsp.root_node, verts_extra, indices_extra);
 
 		index_count=indices.length;
 		test_out.writeln(index_count);

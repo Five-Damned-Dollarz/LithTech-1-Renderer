@@ -225,7 +225,7 @@ struct RenderDLL
 	int unknown_2;
 	int lightmap_memory_use; // total texture allocs? unknown
 	int memory_saved; // unknown
-	int function(RenderStructInit*) Init;
+	int function(RenderStructInit*) Init; // returns 0 for success; 1 for pixel format error, 10 for ddraw failure
 	void function() Term;
 	void function(SharedTexture**) SetSoftSky;
 	void function(SharedTexture*, int) BindTexture;
@@ -289,8 +289,18 @@ struct RenderDLL
 	}
 	PaletteList* palette_list; // Related(?): #define MAX_SKYOBJECTS 30 // Maximum number of sky objects.
 
-	// compiling -version=LITHTECH_1_5 will fail here
-	static assert(this.sizeof==272);
-	static assert(is_init.offsetof==60);
-	static assert(render_dll_handle.offsetof==264);
+	version(LITHTECH_1_5)
+	{
+		static assert(this.sizeof==308);
+		static assert(is_init.offsetof==72);
+		static assert(render_dll_handle.offsetof==300);
+	}
+	else // version(LITHTECH_1_0)
+	{
+		static assert(this.sizeof==272);
+		static assert(is_init.offsetof==60);
+		static assert(render_dll_handle.offsetof==264);
+	}
+
+	// interesting note: there's a function that tries to access this + 0x410 suggesting RenderDLL is significantly larger than we think
 }

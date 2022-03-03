@@ -115,12 +115,12 @@ struct ModelData
 	void*[2] unknown_1a;
 	ModelData* self_ref;
 	char* file_name;
-	void*[2] unknown_1b;
+	void*[2] unknown_1b; // [1] = memory use?
 
 	vec3 bounds_min, bounds_max;
 	float bounds_radius;
 
-	void*[2] unknown_2;
+	void*[2] unknown_2; // DLink?
 
 	void* unknown_3; // self???
 	uint unknown_3_count;
@@ -140,9 +140,9 @@ struct ModelData
 
 	uint unknown_8;
 
-	uint unknown_9_count; // vertex_count[0]?
-	ModelVertex* vertices; // vertices?
-	uint unknown_9_count_b; // vertex_count[1]?
+	uint vertex_count_total; // all vertices, including replacements
+	ModelVertex* vertices;
+	uint vertex_count_base; // of the highest LOD model, the remainder are used to reduce polycount
 
 	uint face_count;
 	ModelFace* faces;

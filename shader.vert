@@ -3,7 +3,7 @@
 
 #define MAX_LIGHT_COUNT 40
 
-layout(binding=0) uniform UniformBufferObject {
+layout(set=0, binding=0) uniform UniformBufferObject {
 	mat4 model;
 	mat4 view;
 	mat4 proj;
@@ -11,13 +11,13 @@ layout(binding=0) uniform UniformBufferObject {
 
 struct LightObj
 {
-	vec3 position;
+	vec3 position; float pad;
 	vec3 colour;
 	float radius;
 };
 
-layout(binding=1) uniform LightList {
-	uint light_count;
+layout(set=0, binding=2) uniform LightList {
+	uint count; float pad, pad_, pad__;
 	LightObj lights[MAX_LIGHT_COUNT];
 } light_list;
 
@@ -32,7 +32,7 @@ vec3 CalculateLight() // should return lit vertex colour with channels between [
 {
 	vec3 colour_out=vec3(0.0, 0.0, 0.0);
 
-	for(uint i=0; i<light_list.light_count; ++i)
+	for(uint i=0; i<light_list.count; ++i)
 	{
 		LightObj obj=light_list.lights[i];
 
@@ -49,6 +49,7 @@ vec3 CalculateLight() // should return lit vertex colour with channels between [
 void main()
 {
 	gl_Position=ubo.proj*ubo.view*ubo.model*vec4(position_in, 1.0);
-	fragColour=colour_in; // CalculateLight()/255.0, does this language let you div a vec with a scalar?
+
+	fragColour=colour_in-CalculateLight();
 	fragTexCoord=uv_in;
 }
