@@ -28,9 +28,9 @@ layout(location=2) in vec2 uv_in;
 layout(location=0) out vec3 fragColour;
 layout(location=1) out vec2 fragTexCoord;
 
-vec3 CalculateLight() // should return lit vertex colour with channels between [0, 255]
+vec3 CalculateLight()
 {
-	vec3 colour_out=vec3(0.0, 0.0, 0.0);
+	vec3 colour_out=colour_in;
 
 	for(uint i=0; i<light_list.count; ++i)
 	{
@@ -39,8 +39,8 @@ vec3 CalculateLight() // should return lit vertex colour with channels between [
 		float pos_diff=distance(obj.position, position_in);
 		if (pos_diff>obj.radius) continue;
 
-		float ratio=(1.0-pos_diff/obj.radius)*0.7;
-		colour_out+=(obj.colour*2-0xFF)*ratio;
+		float ratio=1.0-pos_diff*(1.0/obj.radius);
+		colour_out+=obj.colour-(1.0-obj.colour)*ratio;
 	}
 
 	return colour_out;
@@ -50,6 +50,6 @@ void main()
 {
 	gl_Position=ubo.proj*ubo.view*ubo.model*vec4(position_in, 1.0);
 
-	fragColour=colour_in-CalculateLight();
+	fragColour=CalculateLight();
 	fragTexCoord=uv_in;
 }
