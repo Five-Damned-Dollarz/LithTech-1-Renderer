@@ -45,7 +45,7 @@ struct RenderContextInit
 	MainWorld* main_world;
 	void*[4] buf;
 	void* list_end; // byte 24
-	void* list_head;// byte 28
+	void* list_head; // byte 28
 	void*[48] buf2;
 }
 
@@ -95,7 +95,7 @@ struct SceneDesc
 
 	// camera stuff
 	Rect view_rect;
-	float fov_x, fov_y;
+	float fov_x, fov_y; // in radians
 	float far_clipping_plane;
 	vec3 camera_position;
 	float[4] camera_rotation; // can't use gl3n's quat because w is first, when it's last in DRotation

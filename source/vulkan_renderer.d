@@ -334,10 +334,13 @@ public:
 
 	vec3 camera_pos;
 	quat camera_view=quat.identity;
+	float fov_global=45f;
 	override void RenderScene(SceneDesc* scene_desc) // vkCmd*
 	{
 		camera_pos=vec3(scene_desc.camera_position);
 		camera_view=quat(scene_desc.camera_rotation[3], vec3(scene_desc.camera_rotation[0..3]));
+
+		fov_global=degrees(scene_desc.fov_y);
 
 		/+
 		uVar9 = 0;
@@ -1427,7 +1430,7 @@ private:
 		RotTransCamera(camera_pos, camera_view, test_camera_out);
 		ubo.view=test_camera_out.transposed();
 
-		ubo.proj=mat4.perspective(_extents.width, _extents.height, 45f, 0.1f, 15000f).transposed();
+		ubo.proj=mat4.perspective(_extents.width, _extents.height, fov_global, 0.1f, 15000f).transposed();
 
 		void* data;
 		//vkMapMemory(g_Device, _uniform_buffers_memory[image_index], 0, ubo.sizeof, 0, &data);
