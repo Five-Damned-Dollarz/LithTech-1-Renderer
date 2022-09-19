@@ -106,7 +106,7 @@ enum SurfaceFlags : uint
 
 struct Surface
 {
-	vec3[6] opq_map;
+	vec3[6] opq_map; // [0..2] = UV, [3..4] = lightmap UV? [5] = ???
 	SharedTexture* shared_texture; // not filled when recieved by CreateContext
 	Plane* plane;
 	SurfaceFlags flags; // top byte = surface effect? bottom 3 bytes = flags
@@ -131,28 +131,30 @@ struct Leaf
 	Buffer* unknown_2; // start? -- in place DLink?
 	Buffer* unknown_3; // end?
 	Buffer* unknown_4; // next, if start != end?
-	Buffer* unknown_5; // pointer into WorldBsp.unknown_2 or copy node's polygon list pointer? 4 byte stride
-	int unknown_6; // set to 0 at the start of each frame draw; unknown_5 count?
-	Buffer* unknown_7;
-	int unknown_8; // leaf list id?
+
+	Polygon** polygons; // pointer into WorldBsp.unknown_2 or copy node's polygon list pointer? 4 byte stride
+	uint polygon_count; // set to 0 at the start of each frame draw?
+
+	Buffer* unknown_7; // not a pointer!
+	int unknown_8; // leaf list id? flags?
 
 	static assert(this.sizeof==48);
 }
 
-struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
+struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN
 {
 	vec3 center;
 	float radius;
 
 	Surface* surface;
 
-	float unknown_1a;
-	Polygon* next; // [1] = Polygon* next?
-	float unknown_1b;
+	void* unknown_1a;
+	Polygon* next; // [1] = Polygon* next? lightmap texture pointer? pointer to light objects? free space?
+	void* unknown_1b;
 	vec3 polygon_list; // from PolygonList in the dat
 
-	void* unknown_2;
-	void* lightmap_texture; // possibly for our created lightmap RenderTexture?
+	void* lightmap_page; // vulkan surface in our case
+	ubyte[4] lightmap_info; // w*2, h*2, w, h? //void* lightmap_texture; // possibly for our created lightmap RenderTexture?
 	ubyte* lightmap_data;
 
 	ushort unknown; // set to 0 on frame start?
@@ -167,10 +169,10 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 	{
 		vec4* vertex_data;
 		vec2 uv; // filled in some time after CreateContext call
-		private vec2 pad; // unsure if this is used
+		vec2 lightmap_uv; // filled in after paging lightmaps
 		ubyte[4] colour;
 	}
-	DiskVert vertices; // this is intended to be drawn as a triangle fan: [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], etc.
+	private DiskVert vertices; // this is intended to be drawn as a triangle fan: [0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 5], etc.
 
 	/// only draw one of the following sets or you get z-fighting where DiskExtras has extra cuts in the faces
 	@property DiskVert[] DiskVerts() return
@@ -185,6 +187,28 @@ struct Polygon // drawn with D3DPT_TRIANGLEFAN/GL_TRIANGLE_FAN?
 
 	static assert(lightmap_data.offsetof==52);
 	static assert(this.sizeof>=72); // smallest runtime case possible should be 212?
+}
+
+public void GenerateLightmapUvs(ref Polygon poly)
+{
+	if (poly.lightmap_data==null)
+	{
+		poly.surface.flags=poly.surface.flags & (~SurfaceFlags.LightMap) | SurfaceFlags.DirectionalLight;
+		// return; is it safe to skip?
+	}
+
+	foreach(ref disk_vert; poly.DiskVerts()) // For reference: d3d.ren @ 0x100374c2
+	{
+		immutable _lightmap_scale=1f/64f;
+
+		vec3 diff=disk_vert.vertex_data.xyz-poly.polygon_list;
+
+		float unk_x=(diff*poly.surface.opq_map[3])*0.05+0.5;
+		float unk_y=(diff*poly.surface.opq_map[4])*0.05+0.5;
+
+		disk_vert.lightmap_uv.x=unk_x;
+		disk_vert.lightmap_uv.y=unk_y;
+	}
 }
 
 struct MainWorld

@@ -19,7 +19,7 @@ struct ModelAnim
 	vec3 bounds_max;
 	float radius; // appears to be average radius
 
-	AnimKeyframe* keyframes;
+	private AnimKeyframe* keyframes;
 	uint keyframe_count;
 
 	@property AnimKeyframe[] Keyframes()
@@ -158,7 +158,7 @@ struct ModelData
 	float lod_dist_max; // LODMAXDIST
 	float unknown_11; // MIPMAPDISTADD?
 
-	int unknown_12; // short[2]?
+	int unknown_12; // short[2]? short* unknown_12; // maybe list of shorts? possibly LOD vertex replacement ids?
 
 	mat4* node_matrices;
 	uint node_matrix_count;

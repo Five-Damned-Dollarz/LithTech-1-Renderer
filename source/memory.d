@@ -5,11 +5,11 @@ import erupted;
 import VulkanRender: g_VkInstance, g_Device, g_PhysicalDevice, g_PhysicalDeviceProps, g_PhysicalMemoryProps, test_out;
 
 // Maximum size of a memory heap in Vulkan to consider it "small".
-immutable VkDeviceSize VMA_SMALL_HEAP_MAX_SIZE = 512 * 1024 * 1024;
+immutable VkDeviceSize VMA_SMALL_HEAP_MAX_SIZE=512*1024*1024;
 // Default size of a block allocated as single VkDeviceMemory from a "large" heap.
-immutable VkDeviceSize VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE = 256 * 1024 * 1024;
+immutable VkDeviceSize VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE=256*1024*1024;
 // Default size of a block allocated as single VkDeviceMemory from a "small" heap.
-immutable VkDeviceSize VMA_DEFAULT_SMALL_HEAP_BLOCK_SIZE =  64 * 1024 * 1024;
+immutable VkDeviceSize VMA_DEFAULT_SMALL_HEAP_BLOCK_SIZE=64*1024*1024;
 
 struct SubAllocation
 {
@@ -145,7 +145,7 @@ class Allocator
 			test_out.flush();
 		}
 
-		return VK_SUCCESS;
+		return res;
 	}
 
 	void Free(ref Allocation alloc)

@@ -158,7 +158,7 @@ export void RenderDLLSetup(RenderDLL* renderer)
 	renderer.LockSurface=&LockSurface;
 	renderer.UnlockSurface=&UnlockSurface;
 	renderer.OptimizeSurface=&OptimizeSurface;
-	renderer.UnoptimizeSurface=&UnoptimizeSurface;
+	renderer.DeoptimizeSurface=&DeoptimizeSurface;
 	renderer.LockScreen=&LockScreen;
 	renderer.UnlockScreen=&UnlockScreen;
 	renderer.BlitToScreen=&BlitToScreen;
@@ -181,6 +181,10 @@ int Init(RenderStructInit* init_struct)
 	_window_main=init_struct.main_window;
 	_renderer.screen_width=init_struct.mode.width;
 	_renderer.screen_height=init_struct.mode.height;
+
+	void* windowed_cvar=_renderer.GetConsoleVar("windowed");
+	const char* windowed_str=_renderer.GetVarValueString(windowed_cvar);
+	test_out.writeln(windowed_cvar, windowed_str);
 
 	_renderer_inst=new VulkanRenderer;
 	//_renderer_inst=new Renderer;
@@ -470,6 +474,60 @@ int RenderScene(SceneDesc* scene_desc)
 			cur=cur.prev;
 		}
 	}+/
+
+	struct TempColour16
+	{
+		ushort colour;
+
+		@property ubyte red() const
+		{
+			return (colour & 0xFC0000) >> 10;
+		}
+
+		@property ubyte green() const
+		{
+			return (colour & 0x7E) >> 5;
+		}
+
+		@property ubyte blue() const
+		{
+			return (colour & 0x1F);
+		}
+
+		string toString()
+		{
+			import std.format;
+			return format("(%d, %d, %d)", red, green, blue);
+		}
+	}
+
+	foreach(poly; bsp.polygons[0..bsp.polygon_count])
+	{
+		test_out.writeln(*poly);
+		if (poly.lightmap_data!=null)
+		{
+			test_out.writeln(poly.DiskVerts()[]);
+
+			import WorldBsp: SurfaceFlags;
+			if (poly.surface.flags & SurfaceFlags.LightMap)
+			{
+				ubyte[] dims=(cast(ubyte*)poly.lightmap_data)[0..2];
+				uint length=dims[0]*dims[1];
+
+				test_out.writeln(dims, ": ", (cast(TempColour16*)poly.lightmap_data)[0..length]);
+			}
+		}
+
+		if (poly.next!=null)
+		{
+			test_out.writeln("Poly.next: ", *(cast(Buffer*)poly.next));
+		}
+
+		if (poly.lightmap_page!=null)
+		{
+			test_out.writeln("Poly.lightmap_page: ", *(cast(Buffer*)poly.lightmap_page));
+		}
+	}
 
 	void ProcessNode(Node* node)
 	{
@@ -830,7 +888,7 @@ int OptimizeSurface(void*, uint)
 	return 0;
 }
 
-void UnoptimizeSurface(void*)
+void DeoptimizeSurface(void*)
 {
 	test();
 }

@@ -19,7 +19,7 @@ import RendererTypes;
 import Texture;
 import WorldBsp: WorldBsp, MainWorld, Node, SurfaceFlags, Polygon;
 
-File test_out;
+File test_out; //import Main: test_out;
 
 VkDebugUtilsMessengerEXT debug_messenger;
 
@@ -261,7 +261,6 @@ public:
 
 	override void InitFrom(void* window)
 	{
-		import std.stdio;
 		test_out.open("vk_test.txt", "w");
 
 		import erupted.vulkan_lib_loader;
@@ -1930,6 +1929,9 @@ private:
 
 		foreach(i, polygon; polygons)
 		{
+			import WorldBsp: GenerateLightmapUvs;
+			GenerateLightmapUvs(*polygon);
+
 			vert_count=vert_buffer.length;
 
 			if (polygon.surface.flags & SurfaceFlags.Invisible)

@@ -63,6 +63,20 @@ enum DrawMode : int
 	ObjectList,
 }
 
+// Model hook.
+enum ModelHookFlags : uint
+{
+	UseTexture=1, // Use the texture for this model (if any).
+}
+
+struct ModelHookData
+{
+	BaseObject* object;
+	ModelHookFlags flags;
+	ObjectFlags object_flags; // The model's object flags. You can modify them in here without changing the model's flags permanently.
+	vec3* light_add; // RGB 0-255, really a pointer?
+}
+
 struct SceneDesc
 {
 	DrawMode draw_mode;
@@ -87,9 +101,10 @@ struct SceneDesc
 	float frame_delta;
 	uint frame_ticks;
 
-	// unknown
-	float[9] unkown_matrix;
+	// unknown, definitely 12 * 4 bytes
+	float[9] unknown_matrix;
 	float[3] unknown_vector;
+	//
 	BaseObject** unknown_array_2; // world model array? limited to max 30?
 	int unknown_count;
 
@@ -105,7 +120,7 @@ struct SceneDesc
 	int obj_count;
 
 	// model hook
-	void function(void* /+ ModelHookData* +/ pData, void* pUser) model_hook_fnc_ptr;
+	void function(ModelHookData* pData, void* pUser) model_hook_fnc_ptr;
 	void* model_hook_user;
 
 	static assert(this.sizeof==240);
@@ -221,8 +236,8 @@ struct RenderDLL
 	int screen_width;
 	int screen_height;
 	int is_init;
-	int unknown_1;
-	int unknown_2;
+	int unknown_1; // current set texture?
+	int unknown_2; // total lightmap page size?
 	int lightmap_memory_use; // total texture allocs? unknown
 	int memory_saved; // unknown
 	int function(RenderStructInit*) Init; // returns 0 for success; 1 for pixel format error, 10 for ddraw failure
@@ -254,7 +269,7 @@ struct RenderDLL
 	void function(ImageSurface*) UnlockSurface;
 	/+ --- These probably also take ImageSurface* +/
 	int function(void* /+ ImageSurface*? +/, uint) OptimizeSurface;
-	void function(void* /+ ImageSurface*? +/) UnoptimizeSurface;
+	void function(void* /+ ImageSurface*? +/) DeoptimizeSurface;
 	int function(int, int, int, int, void**, int*) LockScreen;
 	void function() UnlockScreen;
 	/+ --- +/
